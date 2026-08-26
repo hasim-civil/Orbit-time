@@ -13,18 +13,26 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hasim.orbittime.R
 import com.hasim.orbittime.data.auth.AuthValidation
 import com.hasim.orbittime.ui.components.AuthScreenScaffold
+import com.hasim.orbittime.ui.components.OrDivider
 import com.hasim.orbittime.ui.components.OrbitGradientButton
+import com.hasim.orbittime.ui.components.OrbitOutlineButton
 import com.hasim.orbittime.ui.components.OrbitTextField
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import kotlinx.coroutines.launch
 
 @Composable
 fun CreateAccountScreen(
@@ -34,6 +42,9 @@ fun CreateAccountScreen(
     viewModel: AuthViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val webClientId = stringResource(R.string.default_web_client_id)
+    val scope = rememberCoroutineScope()
 
     CreateAccountContent(
         uiState = uiState,
@@ -41,6 +52,17 @@ fun CreateAccountScreen(
         onNavigateToSignIn = onNavigateToSignIn,
         onCreateAccountClick = { name, email, password ->
             viewModel.createAccount(name, email, password, onAccountCreated)
+        },
+        onGoogleSignInClick = {
+            scope.launch {
+                requestGoogleIdToken(context, webClientId)
+                    .onSuccess { idToken -> viewModel.signInWithGoogle(idToken, onAccountCreated) }
+                    .onFailure { error ->
+                        if (error !is GetCredentialCancellationException) {
+                            viewModel.reportError("Google sign-in failed. Please try again.")
+                        }
+                    }
+            }
         },
     )
 }
@@ -51,6 +73,7 @@ fun CreateAccountContent(
     onBackClick: () -> Unit,
     onNavigateToSignIn: () -> Unit,
     onCreateAccountClick: (name: String, email: String, password: String) -> Unit,
+    onGoogleSignInClick: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
@@ -163,6 +186,10 @@ fun CreateAccountContent(
                     }
                 },
             )
+            Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+            OrDivider()
+            Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+            OrbitOutlineButton(text = "Continue with Google", onClick = onGoogleSignInClick)
         }
     }
 }

@@ -52,4 +52,29 @@ class AuthViewModel(
                 }
         }
     }
+
+    fun signInWithGoogle(idToken: String, onSuccess: () -> Unit) {
+        _uiState.value = AuthUiState(isLoading = true)
+        viewModelScope.launch {
+            authRepository.signInWithGoogleIdToken(idToken)
+                .onSuccess { user ->
+                    val profile = UserProfile(
+                        uid = user.uid,
+                        name = user.displayName.orEmpty(),
+                        email = user.email.orEmpty(),
+                    )
+                    runCatching { profileRepository.saveProfile(profile) }
+                    _uiState.value = AuthUiState(isLoading = false)
+                    onSuccess()
+                }
+                .onFailure { error ->
+                    _uiState.value = AuthUiState(isLoading = false, errorMessage = error.message)
+                }
+        }
+    }
+
+    /** Surfaces a failure from the Google sign-in picker itself (before Firebase is even involved). */
+    fun reportError(message: String) {
+        _uiState.value = AuthUiState(isLoading = false, errorMessage = message)
+    }
 }

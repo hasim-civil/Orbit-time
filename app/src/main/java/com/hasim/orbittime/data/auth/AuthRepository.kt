@@ -7,6 +7,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.ktx.userProfileChangeRequest
 import kotlinx.coroutines.tasks.await
 
@@ -26,6 +27,12 @@ class AuthRepository(
             ?: error("Account created but no user was returned.")
         user.updateProfile(userProfileChangeRequest { displayName = name.trim() }).await()
         user
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    suspend fun signInWithGoogleIdToken(idToken: String): Result<FirebaseUser> = runCatching {
+        val credential = GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential).await().user
+            ?: error("Google sign-in succeeded but no user was returned.")
     }.recoverCatching { throw AuthException(mapAuthError(it)) }
 
     fun signOut() {
