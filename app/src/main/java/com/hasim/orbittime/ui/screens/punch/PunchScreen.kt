@@ -1,6 +1,7 @@
 package com.hasim.orbittime.ui.screens.punch
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -108,6 +112,24 @@ fun PunchContent(
                     PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
                     Spacer(modifier = Modifier.height(OrbitSpacing.lg))
                     CheckInOutMiniCards(uiState)
+                    Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                    PunchTimeActionRow(
+                        icon = "✎",
+                        iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
+                        iconColor = OrbitColors.violet600,
+                        label = "Edit time",
+                        labelColor = OrbitColors.ink900,
+                        trailingText = "9:02 am – 5:48 pm",
+                    )
+                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                    PunchTimeActionRow(
+                        icon = "+",
+                        iconBackground = OrbitColors.mist,
+                        iconColor = OrbitColors.slate500,
+                        label = "Add past attendance",
+                        labelColor = OrbitColors.slate500,
+                        trailingText = null,
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(OrbitSpacing.xl))
@@ -207,17 +229,19 @@ private fun CheckInOutMiniCards(uiState: PunchUiState) {
             modifier = Modifier.weight(1f),
             label = "CHECKED IN",
             value = uiState.checkInAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
+            caption = "Morning shift",
         )
         MiniStatCard(
             modifier = Modifier.weight(1f),
             label = "CHECKED OUT",
             value = uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
+            caption = "of 8.5h shift",
         )
     }
 }
 
 @Composable
-private fun MiniStatCard(label: String, value: String, modifier: Modifier = Modifier) {
+private fun MiniStatCard(label: String, value: String, caption: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .background(
@@ -229,6 +253,50 @@ private fun MiniStatCard(label: String, value: String, modifier: Modifier = Modi
         Text(text = label, style = OrbitTypography.label, color = OrbitColors.slate300)
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
         Text(text = value, style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
+        Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
+        Text(text = caption, style = OrbitTypography.bodySmall, color = OrbitColors.slate300)
+    }
+}
+
+/**
+ * Reference "Edit time" / "Add past attendance" rows below the mini cards.
+ * UI-only for this pass — no editable time picker or attendance-entry flow yet.
+ */
+@Composable
+private fun PunchTimeActionRow(
+    icon: String,
+    iconBackground: Color,
+    iconColor: Color,
+    label: String,
+    labelColor: Color,
+    trailingText: String?,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(OrbitColors.cream50, OrbitShapes.medium)
+            .clickable { }
+            .padding(OrbitSpacing.md),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp).background(iconBackground, OrbitShapes.small),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = icon, style = OrbitTypography.titleMedium, color = iconColor)
+        }
+        Spacer(modifier = Modifier.width(OrbitSpacing.md))
+        Text(
+            text = label,
+            style = OrbitTypography.titleMedium,
+            color = labelColor,
+            modifier = Modifier.weight(1f),
+        )
+        if (trailingText != null) {
+            Text(text = trailingText, style = OrbitTypography.bodyMedium, color = OrbitColors.slate500)
+            Spacer(modifier = Modifier.width(OrbitSpacing.xs))
+        }
+        Text(text = "›", style = OrbitTypography.titleMedium, color = OrbitColors.slate500)
     }
 }
 
