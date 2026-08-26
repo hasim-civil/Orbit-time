@@ -16,6 +16,9 @@ data class DailyAttendance(
 
 enum class AttendanceRangeMode { WEEK, MONTH }
 
+/** Leave and Holiday have no data source yet (their own phases), so classifyDay never produces them today. */
+enum class AttendanceStatus { PRESENT, LATE, ABSENT, LEAVE, HOLIDAY }
+
 data class AttendanceSummary(
     val rangeLabel: String = "",
     val presentDays: Int = 0,
@@ -38,7 +41,7 @@ object AttendanceStats {
         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY,
     )
     private val LATE_AFTER = LocalTime.of(11, 0)
-    private val OVERTIME_AFTER = Duration.ofHours(8)
+    val OVERTIME_AFTER: Duration = Duration.ofHours(8)
 
     fun summarize(
         records: Map<LocalDate, DailyAttendance>,
@@ -91,5 +94,23 @@ object AttendanceStats {
             overtime = overtime,
             attendanceRatePercent = rate,
         )
+    }
+
+    /**
+     * Per-day status for calendar/history views. Returns null for a day with nothing to show yet:
+     * a non-scheduled day (Sunday), or today/a future day with no check-in.
+     */
+    fun classifyDay(
+        checkInAt: Instant?,
+        date: LocalDate,
+        today: LocalDate,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): AttendanceStatus? {
+        if (date.dayOfWeek !in SCHEDULED_DAYS) return null
+        return when {
+            checkInAt != null -> if (checkInAt.atZone(zone).toLocalTime().isAfter(LATE_AFTER)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
+            date.isBefore(today) -> AttendanceStatus.ABSENT
+            else -> null
+        }
     }
 }

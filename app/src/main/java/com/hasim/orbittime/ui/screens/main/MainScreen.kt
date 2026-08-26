@@ -15,12 +15,13 @@ import com.hasim.orbittime.ui.screens.comingsoon.ComingSoonScreen
 import com.hasim.orbittime.ui.screens.home.HomeDashboardScreen
 import com.hasim.orbittime.ui.screens.punch.AttendanceViewModel
 import com.hasim.orbittime.ui.screens.punch.PunchScreen
+import com.hasim.orbittime.ui.screens.timesheet.TimesheetScreen
 import com.hasim.orbittime.util.UserDisplay
 
 /**
  * Owns which bottom-nav tab is showing. Home and Punch share one
  * [AttendanceViewModel] since they render the same underlying attendance
- * record; Timesheet, Reports and Profile are out of scope for this phase.
+ * record; Reports and Profile are out of scope for this phase.
  */
 @Composable
 fun MainScreen(
@@ -48,12 +49,10 @@ fun MainScreen(
             onTabSelected = { selectedTab = it },
             viewModel = attendanceViewModel,
         )
-        OrbitTab.TIMESHEET -> ComingSoonScreen(
-            title = "Timesheet",
+        OrbitTab.TIMESHEET -> TimesheetScreen(
             userInitials = userInitials,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
-            modifier = modifier,
         )
         OrbitTab.REPORTS -> ComingSoonScreen(
             title = "Reports",
