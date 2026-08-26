@@ -132,7 +132,7 @@ fun WelcomeScreen(
                         .padding(horizontal = OrbitSpacing.screenHorizontal),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Spacer(modifier = Modifier.weight(0.9f))
+                    Spacer(modifier = Modifier.weight(2.0f))
                     OrbitSymbol(diameter = orbSize, modifier = entrance.logoModifier())
                     Spacer(modifier = Modifier.height(OrbitSpacing.xxl))
                     Column(
@@ -141,7 +141,7 @@ fun WelcomeScreen(
                     ) {
                         WelcomeTitleBlock(title = strings.title, tagline = strings.tagline)
                     }
-                    Spacer(modifier = Modifier.weight(1.1f))
+                    Spacer(modifier = Modifier.weight(1.0f))
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

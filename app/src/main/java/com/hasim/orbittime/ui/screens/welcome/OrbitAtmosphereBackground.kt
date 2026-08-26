@@ -49,7 +49,7 @@ private val glows = listOf(
         cyclePhaseDegrees = 0f,
         periodMs = OrbitMotion.ATMOSPHERE_DRIFT,
         morphPeriodMs = OrbitMotion.ATMOSPHERE_MORPH,
-        alpha = 0.60f,
+        alpha = 0.34f,
     ),
     // Violet glow, upper-right / right edge.
     AtmosphereGlow(
@@ -61,7 +61,7 @@ private val glows = listOf(
         cyclePhaseDegrees = 90f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.25f).toInt(),
         morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.35f).toInt(),
-        alpha = 0.55f,
+        alpha = 0.30f,
     ),
     // Cool blue glow, left / mid.
     AtmosphereGlow(
@@ -73,7 +73,7 @@ private val glows = listOf(
         cyclePhaseDegrees = 180f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 0.85f).toInt(),
         morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 0.8f).toInt(),
-        alpha = 0.45f,
+        alpha = 0.24f,
     ),
     // Cyan glow, lower centre-right.
     AtmosphereGlow(
@@ -85,7 +85,7 @@ private val glows = listOf(
         cyclePhaseDegrees = 260f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.1f).toInt(),
         morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.15f).toInt(),
-        alpha = 0.48f,
+        alpha = 0.26f,
     ),
 )
 
