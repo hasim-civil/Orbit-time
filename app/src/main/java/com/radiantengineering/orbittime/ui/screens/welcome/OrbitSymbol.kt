@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.radiantengineering.orbittime.ui.theme.OrbitColors
 import com.radiantengineering.orbittime.ui.theme.OrbitMotion
@@ -29,7 +30,7 @@ import kotlin.math.sin
  * Matches the hero art on the Welcome reference screen.
  */
 @Composable
-fun OrbitSymbol(modifier: Modifier = Modifier) {
+fun OrbitSymbol(modifier: Modifier = Modifier, diameter: Dp = 220.dp) {
     val infinite = rememberInfiniteTransition(label = "orbitSymbol")
 
     val ringTilt by infinite.animateFloat(
@@ -52,7 +53,7 @@ fun OrbitSymbol(modifier: Modifier = Modifier) {
         label = "moonPhase",
     )
 
-    Canvas(modifier = modifier.size(220.dp)) {
+    Canvas(modifier = modifier.size(diameter)) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val sphereRadius = size.minDimension * 0.235f
         val ringRx = size.minDimension * 0.40f
