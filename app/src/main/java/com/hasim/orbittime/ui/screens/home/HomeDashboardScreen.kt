@@ -55,6 +55,7 @@ import com.hasim.orbittime.ui.theme.OrbitTypography
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
+import java.time.Instant
 
 @Composable
 fun HomeDashboardScreen(
@@ -169,9 +170,21 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
                 )
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
                 Text(
-                    text = AttendanceTimeFormat.dayOfWeekAndDate(today),
+                    text = "${AttendanceTimeFormat.dayOfWeekAndDate(today)} · Morning shift",
                     style = OrbitTypography.bodyMedium,
                     color = OrbitColors.slate600,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = AttendanceTimeFormat.clockTime(Instant.now()),
+                    style = OrbitTypography.bodyMedium,
+                    color = OrbitColors.ink900,
+                )
+                Text(
+                    text = "LOCAL",
+                    style = OrbitTypography.label,
+                    color = OrbitColors.slate500,
                 )
             }
         }
@@ -184,11 +197,14 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             else -> "Not checked in"
         }
         val statusColor = if (uiState.isCheckedIn) OrbitColors.success else OrbitColors.slate500
-        Box(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .background(statusColor.copy(alpha = 0.12f), CircleShape)
                 .padding(horizontal = OrbitSpacing.md, vertical = OrbitSpacing.xs),
         ) {
+            Box(modifier = Modifier.size(6.dp).background(statusColor, CircleShape))
+            Spacer(modifier = Modifier.width(OrbitSpacing.xs))
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
 
