@@ -12,16 +12,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -40,15 +41,20 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hasim.orbittime.ui.theme.OrbitColors
-import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
 
 enum class OrbitTab { HOME, TIMESHEET, PUNCH, REPORTS, PROFILE }
 
-private val NavBarShape = OrbitShapes.card
-private val CenterButtonDiameter = 64.dp
-private val CenterButtonGlowDiameter = 92.dp
+// Measured from the reference: pill height ~65dp, button ~68dp centered on the pill's
+// top edge. Total component height (button-top to pill-bottom) comes out to ~110dp —
+// that total must be the composable's own measured height, or the button's protrusion
+// gets clipped/ignored by whatever lays this component out.
+private val NavComponentHeight = 110.dp
+private val PillHeight = 65.dp
+private val PillShape = RoundedCornerShape(percent = 50)
+private val ButtonDiameter = 70.dp
+private val ButtonGlowDiameter = 96.dp
 
 @Composable
 fun OrbitBottomNav(
@@ -56,32 +62,38 @@ fun OrbitBottomNav(
     onTabSelected: (OrbitTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(modifier = modifier.fillMaxWidth()) {
+    Box(modifier = modifier.fillMaxWidth().height(NavComponentHeight)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .shadow(elevation = 12.dp, shape = NavBarShape)
-                .background(OrbitColors.cream50.copy(alpha = 0.8f), NavBarShape)
-                .padding(horizontal = OrbitSpacing.sm, vertical = OrbitSpacing.sm),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .align(Alignment.BottomCenter)
+                .height(PillHeight)
+                .shadow(elevation = 10.dp, shape = PillShape)
+                .background(OrbitColors.cream50.copy(alpha = 0.8f), PillShape)
+                .padding(horizontal = OrbitSpacing.lg),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            NavTabItem(NavGlyph.HOME, "Home", selectedTab == OrbitTab.HOME) { onTabSelected(OrbitTab.HOME) }
-            NavTabItem(NavGlyph.TIMESHEET, "Timesheet", selectedTab == OrbitTab.TIMESHEET) { onTabSelected(OrbitTab.TIMESHEET) }
-            Spacer(modifier = Modifier.size(CenterButtonDiameter))
-            NavTabItem(NavGlyph.REPORTS, "Reports", selectedTab == OrbitTab.REPORTS) { onTabSelected(OrbitTab.REPORTS) }
-            NavTabItem(NavGlyph.PROFILE, "Profile", selectedTab == OrbitTab.PROFILE) { onTabSelected(OrbitTab.PROFILE) }
+            NavTabItem(NavGlyph.HOME, "Home", selectedTab == OrbitTab.HOME, Modifier.weight(1f)) { onTabSelected(OrbitTab.HOME) }
+            NavTabItem(NavGlyph.TIMESHEET, "Timesheet", selectedTab == OrbitTab.TIMESHEET, Modifier.weight(1f)) { onTabSelected(OrbitTab.TIMESHEET) }
+            Box(modifier = Modifier.weight(1f))
+            NavTabItem(NavGlyph.REPORTS, "Reports", selectedTab == OrbitTab.REPORTS, Modifier.weight(1f)) { onTabSelected(OrbitTab.REPORTS) }
+            NavTabItem(NavGlyph.PROFILE, "Profile", selectedTab == OrbitTab.PROFILE, Modifier.weight(1f)) { onTabSelected(OrbitTab.PROFILE) }
         }
 
+        // OrbitCenterButton is a ButtonGlowDiameter-tall box with the button centered inside it,
+        // so its own visual center sits at ButtonGlowDiameter/2 from its top. Offsetting by
+        // (pill-top minus that half-height) puts the button's actual center on the pill's top edge.
+        val pillTopFromComponentTop = NavComponentHeight - PillHeight
         OrbitCenterButton(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = (-26).dp),
+                .offset(y = pillTopFromComponentTop - ButtonGlowDiameter / 2),
             onClick = { onTabSelected(OrbitTab.PUNCH) },
         )
     }
 }
 
-/** The floating central action button — always navigates to Punch, position never shifts with tab selection. */
+/** The floating central action button. Its center sits on the pill's top edge and never moves with tab selection. */
 @Composable
 private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -91,25 +103,25 @@ private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier
     val ringRotation by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(14000, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(animation = tween(16000, easing = LinearEasing)),
         label = "ringRotation",
     )
     val breathe by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(2400, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(animation = tween(2600, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "breathe",
     )
-    val pressedScale by animateFloatAsState(targetValue = if (isPressed) 0.92f else 1f, label = "pressedScale")
-    val breatheScale = 1f + breathe * 0.035f
-    val glowAlpha = 0.28f + breathe * 0.22f
+    val pressedScale by animateFloatAsState(targetValue = if (isPressed) 0.94f else 1f, label = "pressedScale")
+    val breatheScale = 1f + breathe * 0.02f
+    val glowAlpha = 0.18f + breathe * 0.12f
 
-    Box(modifier = modifier.size(CenterButtonGlowDiameter), contentAlignment = Alignment.Center) {
+    Box(modifier = modifier.size(ButtonGlowDiameter), contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .size(CenterButtonGlowDiameter)
+                .size(ButtonGlowDiameter)
                 .graphicsLayer { alpha = glowAlpha }
-                .blur(18.dp)
+                .blur(16.dp)
                 .background(
                     brush = Brush.radialGradient(colors = listOf(OrbitColors.violet600, Color.Transparent)),
                     shape = CircleShape,
@@ -118,42 +130,56 @@ private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier
 
         Box(
             modifier = Modifier
-                .size(CenterButtonDiameter)
+                .size(ButtonDiameter)
                 .graphicsLayer {
                     scaleX = breatheScale * pressedScale
                     scaleY = breatheScale * pressedScale
                 }
-                .shadow(elevation = 14.dp, shape = CircleShape)
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(OrbitColors.purple600, OrbitColors.violet700, OrbitColors.void900),
-                        center = Offset.Unspecified,
-                    ),
-                    shape = CircleShape,
-                )
+                .shadow(elevation = 12.dp, shape = CircleShape)
+                .drawWithCache {
+                    val brush = Brush.radialGradient(
+                        colors = listOf(OrbitColors.purple600, OrbitColors.void500, OrbitColors.void900),
+                        center = Offset(size.width * 0.32f, size.height * 0.28f),
+                        radius = size.minDimension * 0.85f,
+                    )
+                    onDrawBehind { drawCircle(brush = brush) }
+                }
                 .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            OrbitNavRing(diameter = 32.dp, rotationDegrees = ringRotation)
+            // Gloss highlight — a small soft light patch near the upper-left, giving the sphere volume.
+            Box(
+                modifier = Modifier
+                    .size(ButtonDiameter * 0.4f)
+                    .offset(x = -ButtonDiameter * 0.14f, y = -ButtonDiameter * 0.16f)
+                    .graphicsLayer { alpha = 0.22f }
+                    .blur(6.dp)
+                    .background(Color.White, CircleShape),
+            )
+
+            OrbitRingGlyph(diameter = ButtonDiameter * 0.5f, rotationDegrees = ringRotation)
         }
     }
 }
 
-/** A plain white ring + dot — the orbit mark rendered for the dark center button, no gradient stroke. */
+/**
+ * The orbit ring + dot, matching the mark used elsewhere in the app (Welcome screen, top bar) but
+ * rendered in plain white for this dark sphere, and — unlike those static marks — rotating slowly.
+ */
 @Composable
-private fun OrbitNavRing(diameter: Dp, rotationDegrees: Float) {
+private fun OrbitRingGlyph(diameter: Dp, rotationDegrees: Float) {
     Canvas(modifier = Modifier.size(diameter).graphicsLayer { rotationZ = rotationDegrees }) {
-        val strokeWidth = size.minDimension * 0.11f
+        val strokeWidth = size.minDimension * 0.12f
         drawOval(
-            color = Color.White,
-            topLeft = Offset(size.width * 0.06f, size.height * 0.30f),
-            size = Size(size.width * 0.88f, size.height * 0.40f),
+            color = Color.White.copy(alpha = 0.95f),
+            topLeft = Offset(size.width * 0.02f, size.height * 0.32f),
+            size = Size(size.width * 0.96f, size.height * 0.36f),
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
         )
         drawCircle(
             color = Color.White,
-            radius = size.minDimension * 0.10f,
-            center = Offset(size.width * 0.86f, size.height * 0.62f),
+            radius = size.minDimension * 0.09f,
+            center = Offset(size.width * 0.88f, size.height * 0.60f),
         )
     }
 }
@@ -163,14 +189,13 @@ private fun NavTabItem(
     glyph: NavGlyph,
     label: String,
     selected: Boolean,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val tint = if (selected) OrbitColors.ink900 else OrbitColors.slate400
     val interactionSource = remember { MutableInteractionSource() }
     Column(
-        modifier = Modifier
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = OrbitSpacing.sm, vertical = OrbitSpacing.xs),
+        modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         NavIcon(glyph = glyph, tint = tint)
