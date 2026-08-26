@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -18,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -34,6 +34,7 @@ private data class AtmosphereGlow(
     val driftAmplitude: Dp,
     val cyclePhaseDegrees: Float,
     val periodMs: Int,
+    val morphPeriodMs: Int,
     val alpha: Float,
 )
 
@@ -47,6 +48,7 @@ private val glows = listOf(
         driftAmplitude = 26.dp,
         cyclePhaseDegrees = 0f,
         periodMs = OrbitMotion.ATMOSPHERE_DRIFT,
+        morphPeriodMs = OrbitMotion.ATMOSPHERE_MORPH,
         alpha = 0.60f,
     ),
     // Violet glow, upper-right / right edge.
@@ -58,6 +60,7 @@ private val glows = listOf(
         driftAmplitude = 30.dp,
         cyclePhaseDegrees = 90f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.25f).toInt(),
+        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.35f).toInt(),
         alpha = 0.55f,
     ),
     // Cool blue glow, left / mid.
@@ -69,6 +72,7 @@ private val glows = listOf(
         driftAmplitude = 24.dp,
         cyclePhaseDegrees = 180f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 0.85f).toInt(),
+        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 0.8f).toInt(),
         alpha = 0.45f,
     ),
     // Cyan glow, lower centre-right.
@@ -80,13 +84,16 @@ private val glows = listOf(
         driftAmplitude = 22.dp,
         cyclePhaseDegrees = 260f,
         periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.1f).toInt(),
+        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.15f).toInt(),
         alpha = 0.48f,
     ),
 )
 
 /**
- * The living Orbit Time atmosphere: a soft cream base wash with drifting
- * violet, blue, cyan and coral glows behind the foreground content.
+ * The living Orbit Time atmosphere: a soft cream base wash with drifting,
+ * gently morphing violet, blue, cyan and coral glows behind the foreground
+ * content. Position and scale are animated on the draw phase only
+ * (graphicsLayer), never triggering layout, to stay cheap on a real device.
  */
 @Composable
 fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
@@ -105,6 +112,7 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
     ) {
         val widthPx = constraints.maxWidth.toFloat()
         val heightPx = constraints.maxHeight.toFloat()
+        val density = LocalDensity.current
 
         glows.forEach { glow ->
             val infinite = rememberInfiniteTransition(label = "atmosphere")
@@ -117,19 +125,32 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
                 ),
                 label = "glowAngle",
             )
+            val morphT by infinite.animateFloat(
+                initialValue = 0f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(glow.morphPeriodMs, easing = OrbitMotion.gentle),
+                    repeatMode = RepeatMode.Reverse,
+                ),
+                label = "glowMorph",
+            )
 
             val radians = Math.toRadians(angle.toDouble())
-            val driftX = glow.driftAmplitude * cos(radians).toFloat()
-            val driftY = glow.driftAmplitude * sin(radians).toFloat()
-
-            val density = LocalDensity.current
-            val anchorX = with(density) { (widthPx * glow.anchorXFraction).toDp() - glow.diameter / 2 }
-            val anchorY = with(density) { (heightPx * glow.anchorYFraction).toDp() - glow.diameter / 2 }
+            val driftXPx = with(density) { (glow.driftAmplitude * cos(radians).toFloat()).toPx() }
+            val driftYPx = with(density) { (glow.driftAmplitude * sin(radians).toFloat()).toPx() }
+            val anchorXPx = widthPx * glow.anchorXFraction - with(density) { (glow.diameter / 2).toPx() }
+            val anchorYPx = heightPx * glow.anchorYFraction - with(density) { (glow.diameter / 2).toPx() }
+            val morphScale = 0.9f + morphT * 0.2f
 
             Box(
                 modifier = Modifier
-                    .offset(x = anchorX + driftX, y = anchorY + driftY)
                     .size(glow.diameter)
+                    .graphicsLayer {
+                        translationX = anchorXPx + driftXPx
+                        translationY = anchorYPx + driftYPx
+                        scaleX = morphScale
+                        scaleY = morphScale
+                    }
                     .background(
                         brush = Brush.radialGradient(
                             colors = listOf(

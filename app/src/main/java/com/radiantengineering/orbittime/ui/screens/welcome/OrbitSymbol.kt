@@ -53,24 +53,63 @@ fun OrbitSymbol(modifier: Modifier = Modifier, diameter: Dp = 220.dp) {
         label = "moonPhase",
     )
 
+    // Very subtle idle "alive" motion on the sphere only — never the whole symbol —
+    // so it reads as a gently drifting 3D object rather than a spinner.
+    val floatT by infinite.animateFloat(
+        initialValue = -1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(OrbitMotion.ORBIT_FLOAT, easing = OrbitMotion.gentle),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sphereFloat",
+    )
+    val breatheT by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(OrbitMotion.ORBIT_BREATHE, easing = OrbitMotion.gentle),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sphereBreathe",
+    )
+    val highlightT by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(OrbitMotion.ORBIT_HIGHLIGHT_PULSE, easing = OrbitMotion.gentle),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "sphereHighlight",
+    )
+
     Canvas(modifier = modifier.size(diameter)) {
         val center = Offset(size.width / 2f, size.height / 2f)
         val sphereRadius = size.minDimension * 0.235f
         val ringRx = size.minDimension * 0.40f
         val ringRy = size.minDimension * 0.245f
 
-        // Ambient glow behind everything.
+        // The sphere floats a couple of percent of its own size and breathes very
+        // slightly in scale — subtle enough to read as depth, not motion.
+        val sphereCenter = Offset(center.x, center.y + floatT * sphereRadius * 0.09f)
+        val liveSphereRadius = sphereRadius * (1f + breatheT * 0.02f)
+
+        // Ambient glow behind everything, pulsing gently with the same breathing life.
+        // Kept well inside the canvas bounds (< 0.5 * diameter) so it never gets
+        // clipped against the square canvas edge — that clip is invisible at full
+        // opacity but shows as a hard-edged halo while the entrance fade is animating.
+        val glowRadius = liveSphereRadius * (1.7f + breatheT * 0.15f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    OrbitColors.violet600.copy(alpha = 0.22f),
+                    OrbitColors.violet600.copy(alpha = 0.18f + breatheT * 0.08f),
                     Color.Transparent,
                 ),
-                center = center,
-                radius = sphereRadius * 3.1f,
+                center = sphereCenter,
+                radius = glowRadius,
             ),
-            radius = sphereRadius * 3.1f,
-            center = center,
+            radius = glowRadius,
+            center = sphereCenter,
         )
 
         // Gradient orbit ring, tilted and continuously rotating.
@@ -100,26 +139,26 @@ fun OrbitSymbol(modifier: Modifier = Modifier, diameter: Dp = 220.dp) {
                     OrbitColors.void600,
                     OrbitColors.void900,
                 ),
-                center = Offset(center.x - sphereRadius * 0.35f, center.y - sphereRadius * 0.4f),
-                radius = sphereRadius * 2.1f,
+                center = Offset(sphereCenter.x - liveSphereRadius * 0.35f, sphereCenter.y - liveSphereRadius * 0.4f),
+                radius = liveSphereRadius * 2.1f,
             ),
-            radius = sphereRadius,
-            center = center,
+            radius = liveSphereRadius,
+            center = sphereCenter,
         )
 
-        // Gloss highlight.
+        // Gloss highlight — alpha drifts gently, like light slowly catching the surface.
         drawOval(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    OrbitColors.lavenderWhite.copy(alpha = 0.55f),
+                    OrbitColors.lavenderWhite.copy(alpha = 0.46f + highlightT * 0.16f),
                     Color.Transparent,
                 ),
             ),
             topLeft = Offset(
-                center.x - sphereRadius * 0.62f,
-                center.y - sphereRadius * 0.75f,
+                sphereCenter.x - liveSphereRadius * 0.62f,
+                sphereCenter.y - liveSphereRadius * 0.75f,
             ),
-            size = Size(sphereRadius * 0.85f, sphereRadius * 0.55f),
+            size = Size(liveSphereRadius * 0.85f, liveSphereRadius * 0.55f),
         )
 
         // Coral moon, orbiting the ring path.
