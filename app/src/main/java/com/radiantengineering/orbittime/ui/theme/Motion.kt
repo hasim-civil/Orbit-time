@@ -11,8 +11,7 @@ object OrbitMotion {
     const val SLOW = 500
     const val SCREEN_ENTER = 600
 
-    /** One full slow rotation of the orbit ring / drifting atmosphere. */
-    const val ORBIT_ROTATION = 24_000
+    /** One full lap of the satellite travelling the (fixed) orbit path / drifting atmosphere. */
     const val ORBIT_MOON = 12_000
     const val ATMOSPHERE_DRIFT = 18_000
 

@@ -25,23 +25,16 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The premium 3D Orbit Time mark: a glossy dark sphere wrapped in a slowly
- * turning gradient ring, with a small coral moon travelling the ring path.
+ * The premium 3D Orbit Time mark: a glossy dark sphere wrapped in a fixed
+ * gradient ring, with a small coral moon travelling the ring path.
  * Matches the hero art on the Welcome reference screen.
  */
 @Composable
 fun OrbitSymbol(modifier: Modifier = Modifier, diameter: Dp = 220.dp) {
     val infinite = rememberInfiniteTransition(label = "orbitSymbol")
 
-    val ringTilt by infinite.animateFloat(
-        initialValue = -28f,
-        targetValue = 332f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(OrbitMotion.ORBIT_ROTATION, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "ringTilt",
-    )
+    // The orbit path itself stays fixed at its tilt — only the satellite travels it.
+    val ringTilt = -28f
 
     val moonPhase by infinite.animateFloat(
         initialValue = 0f,
@@ -112,7 +105,7 @@ fun OrbitSymbol(modifier: Modifier = Modifier, diameter: Dp = 220.dp) {
             center = sphereCenter,
         )
 
-        // Gradient orbit ring, tilted and continuously rotating.
+        // Gradient orbit ring — fixed in place, tilted; only the moon travels it.
         rotate(degrees = ringTilt, pivot = center) {
             drawOval(
                 brush = Brush.linearGradient(
