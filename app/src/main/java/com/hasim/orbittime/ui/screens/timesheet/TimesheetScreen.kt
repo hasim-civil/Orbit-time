@@ -1,6 +1,7 @@
 package com.hasim.orbittime.ui.screens.timesheet
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -204,41 +205,43 @@ private fun MonthNavButton(symbol: String, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(32.dp)
-            .background(OrbitColors.mist, CircleShape)
+            .border(1.dp, OrbitColors.slate200, CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text = symbol, style = OrbitTypography.titleMedium, color = OrbitColors.ink900)
+        Text(text = symbol, style = OrbitTypography.bodyMedium, color = OrbitColors.slate600)
     }
 }
 
 @Composable
 private fun DayCell(day: TimesheetDay?, isToday: Boolean, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(vertical = OrbitSpacing.xs),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
+        modifier = modifier.padding(vertical = OrbitSpacing.xxs),
+        contentAlignment = Alignment.Center,
     ) {
         if (day == null) {
-            Spacer(modifier = Modifier.size(28.dp))
+            Spacer(modifier = Modifier.height(46.dp))
         } else {
-            Box(
+            val baseDotColor = day.status?.let { statusDotColor(it) }
+            val dotColor = if (isToday) baseDotColor?.let { OrbitColors.cream50 } else baseDotColor
+
+            Column(
                 modifier = Modifier
-                    .size(28.dp)
-                    .background(if (isToday) OrbitColors.ink900 else Color.Transparent, CircleShape),
-                contentAlignment = Alignment.Center,
+                    .background(if (isToday) OrbitColors.ink900 else Color.Transparent, RoundedCornerShape(percent = 40))
+                    .padding(vertical = OrbitSpacing.xxs, horizontal = OrbitSpacing.xxs),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Text(
                     text = day.date.dayOfMonth.toString(),
                     style = OrbitTypography.bodyMedium,
                     color = if (isToday) OrbitColors.cream50 else OrbitColors.ink900,
                 )
-            }
-        }
-        Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-        Box(modifier = Modifier.size(6.dp)) {
-            val dotColor = day?.status?.let { statusDotColor(it) }
-            if (dotColor != null) {
-                Box(modifier = Modifier.size(6.dp).background(dotColor, CircleShape))
+                Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
+                Box(modifier = Modifier.size(6.dp)) {
+                    if (dotColor != null) {
+                        Box(modifier = Modifier.size(6.dp).background(dotColor, CircleShape))
+                    }
+                }
             }
         }
     }
@@ -324,7 +327,8 @@ private fun DailyHistoryRow(day: TimesheetDay) {
             isOngoingToday -> "now"
             else -> "—"
         }
-        "$inText → $outText"
+        val suffix = if (statusLabel == "Overtime") " · overtime" else ""
+        "$inText → $outText$suffix"
     } else {
         "—"
     }
@@ -375,7 +379,7 @@ private fun DateBadge(day: TimesheetDay, color: Color) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(text = day.date.dayOfMonth.toString(), style = OrbitTypography.titleMedium, color = OrbitColors.ink900)
-        Text(text = dayOfWeekAbbreviation(day.date), style = OrbitTypography.label, color = OrbitColors.slate500)
+        Text(text = dayOfWeekAbbreviation(day.date), style = OrbitTypography.label, color = color)
     }
 }
 
