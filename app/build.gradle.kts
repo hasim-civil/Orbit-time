@@ -17,6 +17,21 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        // Checked into the repo deliberately: debug keystores use Android's
+        // well-known, publicly documented default credentials and are never
+        // accepted by Play Store, so sharing one is safe. Doing so keeps the
+        // debug SHA-1 identical across every machine and CI runner that
+        // builds this project, instead of each one registering its own with
+        // Firebase — required for Google Sign-In to work everywhere.
+        getByName("debug") {
+            storeFile = rootProject.file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -24,6 +39,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
