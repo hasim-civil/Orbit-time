@@ -13,6 +13,9 @@ import java.util.Locale
 object AttendanceTimeFormat {
     private val dayLabelFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault())
     private val clockFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+    private val monthLabelFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
+    private val weekStartFormatter = DateTimeFormatter.ofPattern("d", Locale.getDefault())
+    private val weekEndFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
 
     fun today(zone: ZoneId = ZoneId.systemDefault()): LocalDate = LocalDate.now(zone)
 
@@ -43,4 +46,14 @@ object AttendanceTimeFormat {
     fun dayOfWeekAndDate(date: LocalDate): String =
         "${date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}, " +
             "${date.dayOfMonth} ${date.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${date.year}"
+
+    /** "August 2026" style label for the Monthly Attendance card. */
+    fun monthLabel(date: LocalDate): String = monthLabelFormatter.format(date)
+
+    /** "18–24 Aug" style label for the Weekly Attendance card. */
+    fun weekRangeLabel(start: LocalDate, end: LocalDate): String =
+        "${weekStartFormatter.format(start)}–${weekEndFormatter.format(end)}"
+
+    /** "9h" style whole-hour duration, used where the design shows hours only (no minutes). */
+    fun wholeHoursLabel(duration: Duration): String = "${duration.toHours()}h"
 }

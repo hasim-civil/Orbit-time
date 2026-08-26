@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -25,10 +24,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hasim.orbittime.ui.components.InlineBanner
 import com.hasim.orbittime.ui.components.OrbitBottomNav
 import com.hasim.orbittime.ui.components.OrbitGradientButton
 import com.hasim.orbittime.ui.components.OrbitOutlineButton
@@ -233,14 +232,3 @@ private fun MiniStatCard(label: String, value: String, modifier: Modifier = Modi
     }
 }
 
-@Composable
-private fun InlineBanner(text: String, color: Color, background: Color) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(background, RoundedCornerShape(OrbitSpacing.md))
-            .padding(horizontal = OrbitSpacing.lg, vertical = OrbitSpacing.md),
-    ) {
-        Text(text = text, style = OrbitTypography.bodyMedium, color = color)
-    }
-}

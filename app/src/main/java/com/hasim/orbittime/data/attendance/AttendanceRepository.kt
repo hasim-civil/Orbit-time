@@ -1,6 +1,7 @@
 package com.hasim.orbittime.data.attendance
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.ktx.toObject
@@ -33,6 +34,25 @@ class AttendanceRepository(
             }
             trySend(snapshot?.toObject<AttendanceRecord>())
         }
+        awaitClose { registration.remove() }
+    }
+
+    /**
+     * Real-time view of every recorded day between [startDate] and [endDate] (inclusive,
+     * both "yyyy-MM-dd"). Document IDs are the date strings, so a lexicographic range
+     * query over the document ID is enough — no extra date field or composite index needed.
+     */
+    fun observeRange(uid: String, startDate: String, endDate: String): Flow<List<AttendanceRecord>> = callbackFlow {
+        val registration = firestore.collection("users").document(uid).collection("attendance")
+            .whereGreaterThanOrEqualTo(FieldPath.documentId(), startDate)
+            .whereLessThanOrEqualTo(FieldPath.documentId(), endDate)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(mapFirestoreError(error))
+                    return@addSnapshotListener
+                }
+                trySend(snapshot?.documents?.mapNotNull { it.toObject<AttendanceRecord>() } ?: emptyList())
+            }
         awaitClose { registration.remove() }
     }
 
