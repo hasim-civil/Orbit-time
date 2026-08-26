@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.theme
+package com.hasim.orbittime.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme

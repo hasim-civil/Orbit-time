@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.components
+package com.hasim.orbittime.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,8 +19,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import com.radiantengineering.orbittime.ui.theme.OrbitColors
-import com.radiantengineering.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.ui.theme.OrbitColors
+import com.hasim.orbittime.ui.theme.OrbitTypography
 
 private val OrbitButtonHeight = 56.dp
 private val OrbitButtonShape: Shape = CircleShape

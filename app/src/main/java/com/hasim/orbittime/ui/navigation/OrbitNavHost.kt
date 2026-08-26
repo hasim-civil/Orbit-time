@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.navigation
+package com.hasim.orbittime.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -6,9 +6,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.radiantengineering.orbittime.ui.screens.common.OrbitPlaceholderScreen
-import com.radiantengineering.orbittime.ui.screens.welcome.WelcomeScreen
-import com.radiantengineering.orbittime.ui.screens.welcome.rememberWelcomeScreenStrings
+import com.hasim.orbittime.ui.screens.common.OrbitPlaceholderScreen
+import com.hasim.orbittime.ui.screens.welcome.WelcomeScreen
+import com.hasim.orbittime.ui.screens.welcome.rememberWelcomeScreenStrings
 
 /** Hosts the app's screens and owns the single [NavHostController] that routes between them. */
 @Composable

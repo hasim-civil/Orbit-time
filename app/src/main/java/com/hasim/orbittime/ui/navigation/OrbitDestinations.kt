@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.navigation
+package com.hasim.orbittime.ui.navigation
 
 /** Route names for the app's navigation graph. */
 object OrbitDestinations {

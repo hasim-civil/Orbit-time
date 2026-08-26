@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.radiantengineering.orbittime"
+    namespace = "com.hasim.orbittime"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.radiantengineering.orbittime"
+        applicationId = "com.hasim.orbittime"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

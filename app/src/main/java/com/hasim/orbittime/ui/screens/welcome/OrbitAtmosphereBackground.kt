@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.screens.welcome
+package com.hasim.orbittime.ui.screens.welcome
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -21,8 +21,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.radiantengineering.orbittime.ui.theme.OrbitColors
-import com.radiantengineering.orbittime.ui.theme.OrbitMotion
+import com.hasim.orbittime.ui.theme.OrbitColors
+import com.hasim.orbittime.ui.theme.OrbitMotion
 import kotlin.math.cos
 import kotlin.math.sin
 

@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.screens.welcome
+package com.hasim.orbittime.ui.screens.welcome
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -31,14 +31,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.radiantengineering.orbittime.R
-import com.radiantengineering.orbittime.ui.components.OrbitGradientButton
-import com.radiantengineering.orbittime.ui.components.OrbitOutlineButton
-import com.radiantengineering.orbittime.ui.theme.OrbitColors
-import com.radiantengineering.orbittime.ui.theme.OrbitMotion
-import com.radiantengineering.orbittime.ui.theme.OrbitSpacing
-import com.radiantengineering.orbittime.ui.theme.OrbitTimeTheme
-import com.radiantengineering.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.R
+import com.hasim.orbittime.ui.components.OrbitGradientButton
+import com.hasim.orbittime.ui.components.OrbitOutlineButton
+import com.hasim.orbittime.ui.theme.OrbitColors
+import com.hasim.orbittime.ui.theme.OrbitMotion
+import com.hasim.orbittime.ui.theme.OrbitSpacing
+import com.hasim.orbittime.ui.theme.OrbitTimeTheme
+import com.hasim.orbittime.ui.theme.OrbitTypography
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

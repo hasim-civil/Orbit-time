@@ -1,4 +1,4 @@
-package com.radiantengineering.orbittime.ui.screens.common
+package com.hasim.orbittime.ui.screens.common
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,10 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import com.radiantengineering.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
-import com.radiantengineering.orbittime.ui.theme.OrbitColors
-import com.radiantengineering.orbittime.ui.theme.OrbitSpacing
-import com.radiantengineering.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
+import com.hasim.orbittime.ui.theme.OrbitColors
+import com.hasim.orbittime.ui.theme.OrbitSpacing
+import com.hasim.orbittime.ui.theme.OrbitTypography
 
 /**
  * Stand-in destination for a screen that hasn't been designed yet (Sign In,
