@@ -1,0 +1,148 @@
+package com.radiantengineering.orbittime.ui.screens.welcome
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.unit.dp
+import com.radiantengineering.orbittime.ui.theme.OrbitColors
+import com.radiantengineering.orbittime.ui.theme.OrbitMotion
+import kotlin.math.cos
+import kotlin.math.sin
+
+/**
+ * The premium 3D Orbit Time mark: a glossy dark sphere wrapped in a slowly
+ * turning gradient ring, with a small coral moon travelling the ring path.
+ * Matches the hero art on the Welcome reference screen.
+ */
+@Composable
+fun OrbitSymbol(modifier: Modifier = Modifier) {
+    val infinite = rememberInfiniteTransition(label = "orbitSymbol")
+
+    val ringTilt by infinite.animateFloat(
+        initialValue = -28f,
+        targetValue = 332f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(OrbitMotion.ORBIT_ROTATION, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "ringTilt",
+    )
+
+    val moonPhase by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(OrbitMotion.ORBIT_MOON, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "moonPhase",
+    )
+
+    Canvas(modifier = modifier.size(220.dp)) {
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val sphereRadius = size.minDimension * 0.235f
+        val ringRx = size.minDimension * 0.40f
+        val ringRy = size.minDimension * 0.245f
+
+        // Ambient glow behind everything.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    OrbitColors.violet600.copy(alpha = 0.22f),
+                    Color.Transparent,
+                ),
+                center = center,
+                radius = sphereRadius * 3.1f,
+            ),
+            radius = sphereRadius * 3.1f,
+            center = center,
+        )
+
+        // Gradient orbit ring, tilted and continuously rotating.
+        rotate(degrees = ringTilt, pivot = center) {
+            drawOval(
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        OrbitColors.cyan400,
+                        OrbitColors.blue500,
+                        OrbitColors.purple500,
+                        OrbitColors.coral500,
+                    ),
+                    start = Offset(center.x - ringRx, center.y + ringRy),
+                    end = Offset(center.x + ringRx, center.y - ringRy),
+                ),
+                topLeft = Offset(center.x - ringRx, center.y - ringRy),
+                size = Size(ringRx * 2f, ringRy * 2f),
+                style = Stroke(width = size.minDimension * 0.028f),
+            )
+        }
+
+        // The sphere itself — dark, glossy, subtly lit from the upper-left.
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    OrbitColors.void300,
+                    OrbitColors.void600,
+                    OrbitColors.void900,
+                ),
+                center = Offset(center.x - sphereRadius * 0.35f, center.y - sphereRadius * 0.4f),
+                radius = sphereRadius * 2.1f,
+            ),
+            radius = sphereRadius,
+            center = center,
+        )
+
+        // Gloss highlight.
+        drawOval(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    OrbitColors.lavenderWhite.copy(alpha = 0.55f),
+                    Color.Transparent,
+                ),
+            ),
+            topLeft = Offset(
+                center.x - sphereRadius * 0.62f,
+                center.y - sphereRadius * 0.75f,
+            ),
+            size = Size(sphereRadius * 0.85f, sphereRadius * 0.55f),
+        )
+
+        // Coral moon, orbiting the ring path.
+        val phiRad = Math.toRadians(moonPhase.toDouble())
+        val tiltRad = Math.toRadians(ringTilt.toDouble())
+        val ex = (ringRx * cos(phiRad)).toFloat()
+        val ey = (ringRy * sin(phiRad)).toFloat()
+        val moonX = center.x + (ex * cos(tiltRad) - ey * sin(tiltRad)).toFloat()
+        val moonY = center.y + (ex * sin(tiltRad) + ey * cos(tiltRad)).toFloat()
+        val moonRadius = size.minDimension * 0.048f
+
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(OrbitColors.coral400.copy(alpha = 0.5f), Color.Transparent),
+                center = Offset(moonX, moonY),
+                radius = moonRadius * 3f,
+            ),
+            radius = moonRadius * 3f,
+            center = Offset(moonX, moonY),
+        )
+        drawCircle(
+            color = OrbitColors.coral500,
+            radius = moonRadius,
+            center = Offset(moonX, moonY),
+        )
+    }
+}

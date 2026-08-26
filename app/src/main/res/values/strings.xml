@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Orbit Time</string>
+    <string name="welcome_tagline">Time revolves around your work.</string>
+    <string name="welcome_sign_in">Sign in</string>
+    <string name="welcome_create_account">Create account</string>
+</resources>
