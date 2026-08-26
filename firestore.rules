@@ -5,6 +5,11 @@ service cloud.firestore {
     // Each user can read and write only their own profile document.
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Each user's own daily attendance records (check-in/check-out).
+      match /attendance/{date} {
+        allow read, write: if request.auth != null && request.auth.uid == uid;
+      }
     }
   }
 }

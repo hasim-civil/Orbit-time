@@ -10,7 +10,7 @@ import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
 import com.hasim.orbittime.ui.screens.auth.CreateAccountScreen
 import com.hasim.orbittime.ui.screens.auth.SignInScreen
-import com.hasim.orbittime.ui.screens.home.HomeScreen
+import com.hasim.orbittime.ui.screens.main.MainScreen
 import com.hasim.orbittime.ui.screens.welcome.WelcomeScreen
 import com.hasim.orbittime.ui.screens.welcome.rememberWelcomeScreenStrings
 
@@ -65,7 +65,7 @@ fun OrbitNavHost(
             )
         }
         composable(OrbitDestinations.HOME) {
-            HomeScreen(
+            MainScreen(
                 onLoggedOut = {
                     navController.navigate(OrbitDestinations.WELCOME) {
                         popUpTo(navController.graph.id) { inclusive = true }
