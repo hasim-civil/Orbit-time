@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -116,7 +115,7 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
 
         glows.forEach { glow ->
             val infinite = rememberInfiniteTransition(label = "atmosphere")
-            val angle by infinite.animateFloat(
+            val angle = infinite.animateFloat(
                 initialValue = glow.cyclePhaseDegrees,
                 targetValue = glow.cyclePhaseDegrees + 360f,
                 animationSpec = infiniteRepeatable(
@@ -125,7 +124,7 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
                 ),
                 label = "glowAngle",
             )
-            val morphT by infinite.animateFloat(
+            val morphT = infinite.animateFloat(
                 initialValue = 0f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
@@ -135,19 +134,22 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
                 label = "glowMorph",
             )
 
-            val radians = Math.toRadians(angle.toDouble())
-            val driftXPx = with(density) { (glow.driftAmplitude * cos(radians).toFloat()).toPx() }
-            val driftYPx = with(density) { (glow.driftAmplitude * sin(radians).toFloat()).toPx() }
             val anchorXPx = widthPx * glow.anchorXFraction - with(density) { (glow.diameter / 2).toPx() }
             val anchorYPx = heightPx * glow.anchorYFraction - with(density) { (glow.diameter / 2).toPx() }
-            val morphScale = 0.9f + morphT * 0.2f
+            val driftAmplitudePx = with(density) { glow.driftAmplitude.toPx() }
 
             Box(
                 modifier = Modifier
                     .size(glow.diameter)
+                    // Reading the animated State inside graphicsLayer's own lambda keeps this
+                    // on the draw phase only — reading it via `by` in the composable body
+                    // instead (as this used to) forces a full recomposition every frame, which
+                    // on a real device is slow enough to make the animation appear frozen.
                     .graphicsLayer {
-                        translationX = anchorXPx + driftXPx
-                        translationY = anchorYPx + driftYPx
+                        val radians = Math.toRadians(angle.value.toDouble())
+                        translationX = anchorXPx + driftAmplitudePx * cos(radians).toFloat()
+                        translationY = anchorYPx + driftAmplitudePx * sin(radians).toFloat()
+                        val morphScale = 0.9f + morphT.value * 0.2f
                         scaleX = morphScale
                         scaleY = morphScale
                     }

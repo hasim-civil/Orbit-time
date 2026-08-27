@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -90,6 +91,21 @@ class AttendanceRepository(
         }.await()
     }.recoverCatching { throwable ->
         throw if (throwable is AttendanceException) throwable else AttendanceException(mapFirestoreErrorMessage(throwable))
+    }
+
+    /**
+     * Direct user-driven edit — correcting today's punch times, or backfilling a past day
+     * that was never punched at all. Unlike check-in/check-out this isn't racing another
+     * write, so a plain merge-set is enough; a null field is left untouched rather than
+     * cleared, so editing just the check-in time doesn't wipe an existing check-out.
+     */
+    suspend fun setManualTimes(uid: String, date: String, checkInAt: Timestamp?, checkOutAt: Timestamp?): Result<Unit> = runCatching {
+        val data = mutableMapOf<String, Any>("date" to date)
+        checkInAt?.let { data["checkInAt"] = it }
+        checkOutAt?.let { data["checkOutAt"] = it }
+        dayDoc(uid, date).set(data, SetOptions.merge()).await()
+    }.recoverCatching { throwable ->
+        throw AttendanceException(mapFirestoreErrorMessage(throwable))
     }
 
     private fun mapFirestoreError(error: FirebaseFirestoreException): AttendanceException =

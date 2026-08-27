@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +48,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -108,7 +111,11 @@ fun HomeDashboardContent(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
-            OrbitTopAppBar(userInitials = userInitials, hasNotification = true)
+            OrbitTopAppBar(
+                userInitials = userInitials,
+                hasNotification = true,
+                onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
+            )
 
             OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
                 Column(
@@ -223,19 +230,22 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
 
         Spacer(modifier = Modifier.height(OrbitSpacing.lg))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.md)) {
+        Row(
+            modifier = Modifier.height(IntrinsicSize.Max),
+            horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.md),
+        ) {
             HomeStatCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 label = "CHECK IN",
                 value = uiState.checkInAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
             )
             HomeStatCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 label = "CHECK OUT",
                 value = uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
             )
             HomeStatCell(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 label = "TOTAL",
                 value = AttendanceTimeFormat.elapsedLabel(uiState.elapsed),
                 emphasized = true,
@@ -280,12 +290,16 @@ private fun HomeStatCell(label: String, value: String, modifier: Modifier = Modi
             text = label,
             style = OrbitTypography.label,
             color = if (emphasized) OrbitColors.slate300 else OrbitColors.slate500,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
         )
         Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
         Text(
             text = value,
             style = OrbitTypography.titleMedium,
             color = if (emphasized) OrbitColors.cream50 else OrbitColors.ink900,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
         )
     }
 }

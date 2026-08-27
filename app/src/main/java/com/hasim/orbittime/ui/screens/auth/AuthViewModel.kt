@@ -37,12 +37,12 @@ class AuthViewModel(
         }
     }
 
-    fun createAccount(name: String, email: String, password: String, onSuccess: () -> Unit) {
+    fun createAccount(name: String, email: String, password: String, shift: String, onSuccess: () -> Unit) {
         _uiState.value = AuthUiState(isLoading = true)
         viewModelScope.launch {
             authRepository.createAccount(name, email, password)
                 .onSuccess { user ->
-                    val profile = UserProfile(uid = user.uid, name = name.trim(), email = email.trim())
+                    val profile = UserProfile(uid = user.uid, name = name.trim(), email = email.trim(), shift = shift)
                     runCatching { profileRepository.saveProfile(profile) }
                     _uiState.value = AuthUiState(isLoading = false)
                     onSuccess()

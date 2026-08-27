@@ -11,11 +11,15 @@ import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyAttendance
 import com.hasim.orbittime.util.observeIsOnline
+import com.google.firebase.Timestamp
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
+import java.util.Date
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -194,4 +198,33 @@ class AttendanceViewModel(
                 .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, errorMessage = error.message) } }
         }
     }
+
+    /** Corrects today's punch times — e.g. a forgotten check-in or a check-out that ran a few minutes late. */
+    fun editTodayTimes(checkInTime: LocalTime, checkOutTime: LocalTime?) {
+        val uid = authRepository.currentUser?.uid ?: return
+        viewModelScope.launch {
+            attendanceRepository.setManualTimes(
+                uid = uid,
+                date = todayKey,
+                checkInAt = checkInTime.toTimestamp(todayDate),
+                checkOutAt = checkOutTime?.toTimestamp(todayDate),
+            ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    /** Backfills a day that was never punched — a full check-in/check-out pair for a past date. */
+    fun addPastAttendance(date: LocalDate, checkInTime: LocalTime, checkOutTime: LocalTime) {
+        val uid = authRepository.currentUser?.uid ?: return
+        viewModelScope.launch {
+            attendanceRepository.setManualTimes(
+                uid = uid,
+                date = AttendanceTimeFormat.dateKey(date),
+                checkInAt = checkInTime.toTimestamp(date),
+                checkOutAt = checkOutTime.toTimestamp(date),
+            ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    private fun LocalTime.toTimestamp(date: LocalDate): Timestamp =
+        Timestamp(Date.from(date.atTime(this).atZone(ZoneId.systemDefault()).toInstant()))
 }

@@ -18,11 +18,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -45,6 +57,10 @@ import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 /** Reference progress denominator for the elapsed ring — no shift-schedule model exists yet. */
 private val STANDARD_SHIFT = Duration.ofMinutes((8.5 * 60).toLong())
@@ -65,6 +81,8 @@ fun PunchScreen(
         onTabSelected = onTabSelected,
         onCheckInClick = viewModel::checkIn,
         onCheckOutClick = viewModel::checkOut,
+        onEditTime = viewModel::editTodayTimes,
+        onAddPastAttendance = viewModel::addPastAttendance,
     )
 }
 
@@ -76,7 +94,12 @@ fun PunchContent(
     onTabSelected: (OrbitTab) -> Unit,
     onCheckInClick: () -> Unit,
     onCheckOutClick: () -> Unit,
+    onEditTime: (LocalTime, LocalTime?) -> Unit = { _, _ -> },
+    onAddPastAttendance: (LocalDate, LocalTime, LocalTime) -> Unit = { _, _, _ -> },
 ) {
+    var showEditTimeDialog by remember { mutableStateOf(false) }
+    var showPastDatePicker by remember { mutableStateOf(false) }
+    var pastAttendanceDate by remember { mutableStateOf<LocalDate?>(null) }
     Box(modifier = Modifier.fillMaxSize()) {
         OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
 
@@ -85,7 +108,11 @@ fun PunchContent(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
-            OrbitTopAppBar(userInitials = userInitials, hasNotification = true)
+            OrbitTopAppBar(
+                userInitials = userInitials,
+                hasNotification = true,
+                onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
+            )
 
             OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
                 Column(
@@ -122,7 +149,14 @@ fun PunchContent(
                             iconColor = OrbitColors.violet600,
                             label = "Edit time",
                             labelColor = OrbitColors.ink900,
-                            trailingText = "9:02 am – 5:48 pm",
+                            trailingText = if (uiState.checkInAt != null) {
+                                "${AttendanceTimeFormat.clockTime(uiState.checkInAt)} – " +
+                                    (uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "now")
+                            } else {
+                                null
+                            },
+                            enabled = uiState.checkInAt != null,
+                            onClick = { showEditTimeDialog = true },
                         )
                         Spacer(modifier = Modifier.height(OrbitSpacing.sm))
                         PunchTimeActionRow(
@@ -132,6 +166,7 @@ fun PunchContent(
                             label = "Add past attendance",
                             labelColor = OrbitColors.slate500,
                             trailingText = null,
+                            onClick = { showPastDatePicker = true },
                         )
                     }
 
@@ -139,6 +174,118 @@ fun PunchContent(
                 }
             }
         }
+
+        if (showEditTimeDialog && uiState.checkInAt != null) {
+            val zone = ZoneId.systemDefault()
+            TimeRangeDialog(
+                title = "Edit today's time",
+                initialCheckIn = uiState.checkInAt.atZone(zone).toLocalTime(),
+                initialCheckOut = (uiState.checkOutAt ?: Instant.now()).atZone(zone).toLocalTime(),
+                confirmLabel = "Save",
+                onConfirm = { checkIn, checkOut ->
+                    onEditTime(checkIn, checkOut)
+                    showEditTimeDialog = false
+                },
+                onDismiss = { showEditTimeDialog = false },
+            )
+        }
+
+        if (showPastDatePicker) {
+            PastDatePickerDialog(
+                onDateSelected = { date ->
+                    showPastDatePicker = false
+                    pastAttendanceDate = date
+                },
+                onDismiss = { showPastDatePicker = false },
+            )
+        }
+
+        val selectedPastDate = pastAttendanceDate
+        if (selectedPastDate != null) {
+            TimeRangeDialog(
+                title = "Add attendance for ${AttendanceTimeFormat.dayLabel(selectedPastDate)}",
+                initialCheckIn = LocalTime.of(9, 0),
+                initialCheckOut = LocalTime.of(17, 30),
+                confirmLabel = "Add",
+                onConfirm = { checkIn, checkOut ->
+                    onAddPastAttendance(selectedPastDate, checkIn, checkOut)
+                    pastAttendanceDate = null
+                },
+                onDismiss = { pastAttendanceDate = null },
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeRangeDialog(
+    title: String,
+    initialCheckIn: LocalTime,
+    initialCheckOut: LocalTime,
+    confirmLabel: String,
+    onConfirm: (LocalTime, LocalTime) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val checkInState = rememberTimePickerState(initialHour = initialCheckIn.hour, initialMinute = initialCheckIn.minute, is24Hour = false)
+    val checkOutState = rememberTimePickerState(initialHour = initialCheckOut.hour, initialMinute = initialCheckOut.minute, is24Hour = false)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title, style = OrbitTypography.titleMedium) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+                Text(text = "Check in", style = OrbitTypography.label, color = OrbitColors.slate500)
+                TimeInput(state = checkInState)
+                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+                Text(text = "Check out", style = OrbitTypography.label, color = OrbitColors.slate500)
+                TimeInput(state = checkOutState)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(
+                    LocalTime.of(checkInState.hour, checkInState.minute),
+                    LocalTime.of(checkOutState.hour, checkOutState.minute),
+                )
+            }) { Text(confirmLabel) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PastDatePickerDialog(
+    onDateSelected: (LocalDate) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val todayMillis = remember {
+        AttendanceTimeFormat.today().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
+    }
+    val state = rememberDatePickerState(
+        initialSelectedDateMillis = todayMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis < todayMillis
+        },
+    )
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = {
+                val millis = state.selectedDateMillis
+                if (millis != null) {
+                    onDateSelected(Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate())
+                }
+            }) { Text("Next") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    ) {
+        DatePicker(state = state)
     }
 }
 
@@ -263,10 +410,7 @@ private fun MiniStatCard(label: String, value: String, caption: String, modifier
     }
 }
 
-/**
- * Reference "Edit time" / "Add past attendance" rows below the mini cards.
- * UI-only for this pass — no editable time picker or attendance-entry flow yet.
- */
+/** "Edit time" / "Add past attendance" rows below the mini cards. */
 @Composable
 private fun PunchTimeActionRow(
     icon: String,
@@ -275,12 +419,14 @@ private fun PunchTimeActionRow(
     label: String,
     labelColor: Color,
     trailingText: String?,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.medium)
-            .clickable { }
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(OrbitSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {

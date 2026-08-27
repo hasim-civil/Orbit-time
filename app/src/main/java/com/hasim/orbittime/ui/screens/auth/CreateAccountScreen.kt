@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -56,8 +58,8 @@ fun CreateAccountScreen(
         uiState = uiState,
         onBackClick = onBackClick,
         onNavigateToSignIn = onNavigateToSignIn,
-        onCreateAccountClick = { name, email, password ->
-            viewModel.createAccount(name, email, password, onAccountCreated)
+        onCreateAccountClick = { name, email, password, shift ->
+            viewModel.createAccount(name, email, password, shift, onAccountCreated)
         },
         onGoogleSignInClick = {
             scope.launch {
@@ -73,17 +75,25 @@ fun CreateAccountScreen(
     )
 }
 
+/** Reference shift options — no shift-schedule backend exists yet, so this is a fixed list. */
+val ShiftOptions = listOf(
+    "Morning · 9:00 am – 5:30 pm",
+    "Afternoon · 1:00 pm – 9:30 pm",
+    "Night · 9:00 pm – 5:30 am",
+)
+
 @Composable
 fun CreateAccountContent(
     uiState: AuthUiState,
     onBackClick: () -> Unit,
     onNavigateToSignIn: () -> Unit,
-    onCreateAccountClick: (name: String, email: String, password: String) -> Unit,
+    onCreateAccountClick: (name: String, email: String, password: String, shift: String) -> Unit,
     onGoogleSignInClick: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var shift by remember { mutableStateOf(ShiftOptions.first()) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -141,7 +151,7 @@ fun CreateAccountContent(
             errorText = passwordError,
         )
         Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-        ShiftSelectorField()
+        ShiftSelectorField(selectedShift = shift, onShiftSelected = { shift = it })
 
         if (uiState.errorMessage != null) {
             Spacer(modifier = Modifier.height(OrbitSpacing.lg))
@@ -172,7 +182,7 @@ fun CreateAccountContent(
                     emailError = eErr
                     passwordError = pErr
                     if (nErr == null && eErr == null && pErr == null) {
-                        onCreateAccountClick(name, email, password)
+                        onCreateAccountClick(name, email, password, shift)
                     }
                 },
             )
@@ -192,13 +202,15 @@ fun CreateAccountContent(
     }
 }
 
-/**
- * Reference "SHIFT" row: same cream-box label field as [OrbitTextField],
- * but styled as a non-editable dropdown with a chevron. UI-only for this
- * pass — no shift data model or Firestore write path yet.
- */
+/** Reference "SHIFT" row: same cream-box label field as [OrbitTextField], styled as a dropdown. */
 @Composable
-private fun ShiftSelectorField(modifier: Modifier = Modifier) {
+private fun ShiftSelectorField(
+    selectedShift: String,
+    onShiftSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+
     Column(modifier = modifier) {
         Text(
             text = "SHIFT",
@@ -210,13 +222,13 @@ private fun ShiftSelectorField(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(OrbitColors.cream50, OrbitShapes.medium)
-                .clickable { }
+                .clickable { expanded = true }
                 .padding(horizontal = OrbitSpacing.lg, vertical = OrbitSpacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = "Morning · 9:00 am – 5:30 pm",
+                text = selectedShift,
                 style = OrbitTypography.bodyLarge,
                 color = OrbitColors.ink900,
             )
@@ -225,6 +237,17 @@ private fun ShiftSelectorField(modifier: Modifier = Modifier) {
                 style = OrbitTypography.titleMedium,
                 color = OrbitColors.slate500,
             )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ShiftOptions.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option) },
+                    onClick = {
+                        onShiftSelected(option)
+                        expanded = false
+                    },
+                )
+            }
         }
     }
 }

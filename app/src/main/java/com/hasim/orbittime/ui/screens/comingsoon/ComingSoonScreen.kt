@@ -47,7 +47,10 @@ fun ComingSoonScreen(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.safeDrawing),
         ) {
-            OrbitTopAppBar(userInitials = userInitials)
+            OrbitTopAppBar(
+                userInitials = userInitials,
+                onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
+            )
 
             OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
                 Column(

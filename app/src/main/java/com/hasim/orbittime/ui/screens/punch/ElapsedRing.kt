@@ -47,21 +47,17 @@ import com.hasim.orbittime.ui.theme.OrbitTypography
 // Measured from the reference's live markup (238/218/196/172/160px nested rings at the
 // reference's 393dp device width), not approximated from a still image.
 private val HaloDiameter = 233.dp
-private val OrbitRingDiameter = 213.dp
 private val ProgressRingDiameter = 192.dp
 private val RippleDiameter = 168.dp
 private val ButtonDiameter = 156.dp
 
 private val ProgressEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private val PressEasing = CubicBezierEasing(0.3f, 1.4f, 0.5f, 1f)
-private val OrbitSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 
 /**
- * The layered elapsed-time ring + tap target on the Punch hero card, reproducing the
- * reference's distinct animated layers rather than a single flattened ring:
- * a pulsing outer halo ("haloPulse"), a decorative gradient dash that sways like a wave
- * ("orbitSpin"), the real shift-progress ring (smoothly animated, not decorative), a soft
- * pulsing edge glow ("edgeGlow"), a counter-rotating conic glow behind the button
+ * The layered elapsed-time ring + tap target on the Punch hero card: a pulsing outer
+ * halo ("haloPulse"), the real shift-progress ring (smoothly animated, not decorative),
+ * a soft pulsing edge glow ("edgeGlow"), a counter-rotating conic glow behind the button
  * ("revSpin"), and a one-shot expanding ripple fired on tap ("punchGlow").
  */
 @Composable
@@ -87,14 +83,6 @@ fun ElapsedRing(
             },
         ),
         label = "halo",
-    )
-    // The decorative dash ring sways back and forth like a wave, rather than spinning
-    // all the way around — a gentle pendulum drift, not a continuous rotation.
-    val orbitRotation by infiniteTransition.animateFloat(
-        initialValue = -24f,
-        targetValue = 24f,
-        animationSpec = infiniteRepeatable(animation = tween(4400, easing = OrbitSwayEasing), repeatMode = RepeatMode.Reverse),
-        label = "orbitRotation",
     )
     val revRotation by infiniteTransition.animateFloat(
         initialValue = 360f,
@@ -148,33 +136,7 @@ fun ElapsedRing(
                 .border(1.dp, OrbitColors.purple500.copy(alpha = 0.4f), CircleShape),
         )
 
-        // 2. orbitSpin — the whole decorative gradient dash + leading dot rotates as one unit.
-        Canvas(
-            modifier = Modifier
-                .size(OrbitRingDiameter)
-                .graphicsLayer { rotationZ = orbitRotation },
-        ) {
-            val strokeWidth = 2.dp.toPx()
-            val radius = (size.minDimension - strokeWidth) / 2f
-            val center = Offset(size.width / 2f, size.height / 2f)
-            drawCircle(color = Color.White.copy(alpha = 0.09f), radius = radius, center = center, style = Stroke(width = strokeWidth))
-
-            val sweep = 99f
-            drawArc(
-                brush = Brush.linearGradient(
-                    colors = listOf(OrbitColors.coral500, OrbitColors.purple500, OrbitColors.purple500.copy(alpha = 0.18f)),
-                ),
-                startAngle = -90f,
-                sweepAngle = sweep,
-                useCenter = false,
-                topLeft = Offset(center.x - radius, center.y - radius),
-                size = Size(radius * 2f, radius * 2f),
-                style = Stroke(width = strokeWidth * 1.2f, cap = StrokeCap.Round),
-            )
-            drawCircle(color = OrbitColors.coral400, radius = strokeWidth * 2.5f, center = Offset(center.x, center.y - radius))
-        }
-
-        // 3. The real shift-progress ring — data-driven, smoothly transitions on change.
+        // 2. The real shift-progress ring — data-driven, smoothly transitions on change.
         Canvas(modifier = Modifier.size(ProgressRingDiameter)) {
             val strokeWidth = size.minDimension * 0.036f
             val radius = (size.minDimension - strokeWidth) / 2f
@@ -195,7 +157,7 @@ fun ElapsedRing(
             }
         }
 
-        // 4. edgeGlow — soft pulsing outline around the progress ring.
+        // 3. edgeGlow — soft pulsing outline around the progress ring.
         Box(
             modifier = Modifier
                 .size(ProgressRingDiameter)
@@ -203,7 +165,7 @@ fun ElapsedRing(
                 .border(1.dp, OrbitColors.coral500.copy(alpha = 0.22f), CircleShape),
         )
 
-        // 5. punchGlow — one-shot ripple, only visible while it's playing.
+        // 4. punchGlow — one-shot ripple, only visible while it's playing.
         if (ripple.value > 0f && ripple.value < 1f) {
             Box(
                 modifier = Modifier
@@ -218,7 +180,7 @@ fun ElapsedRing(
             )
         }
 
-        // 6. revSpin — counter-rotating conic glow behind the button.
+        // 5. revSpin — counter-rotating conic glow behind the button.
         Box(
             modifier = Modifier
                 .size(ButtonDiameter)
@@ -240,7 +202,7 @@ fun ElapsedRing(
                 },
         )
 
-        // 7. The center button — dark glossy sphere, doubling as a tap target.
+        // 6. The center button — dark glossy sphere, doubling as a tap target.
         val clickModifier = if (onClick != null) {
             Modifier.clickable(interactionSource = interactionSource, indication = null) {
                 rippleKey++
