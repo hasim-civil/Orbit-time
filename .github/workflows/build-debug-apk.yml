@@ -51,20 +51,25 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Rename APK for beta distribution
+        run: |
+          mkdir -p app/build/outputs/apk/debug-renamed
+          cp app/build/outputs/apk/debug/*.apk "app/build/outputs/apk/debug-renamed/OrbitTime-Beta-${{ github.run_number }}.apk"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: orbit-time-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          name: orbit-time-beta-apk
+          path: app/build/outputs/apk/debug-renamed/*.apk
           if-no-files-found: error
 
-      - name: Publish release with APK
+      - name: Publish beta release with APK
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: debug-build-${{ github.run_number }}
-          name: Debug build ${{ github.run_number }} (${{ github.ref_name }})
+          tag_name: beta-${{ github.run_number }}
+          name: Orbit Time Beta ${{ github.run_number }}
           body: |
-            Automated debug APK build from `${{ github.ref_name }}` @ ${{ github.sha }}.
+            Automated beta APK build from `${{ github.ref_name }}` @ ${{ github.sha }}.
             Not signed for release — install for testing only (enable "install from unknown sources").
           prerelease: true
-          files: app/build/outputs/apk/debug/*.apk
+          files: app/build/outputs/apk/debug-renamed/*.apk
