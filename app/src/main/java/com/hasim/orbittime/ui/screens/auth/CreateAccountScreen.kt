@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimeInput
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -40,7 +43,13 @@ import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.launch
+
+private val ShiftClockFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private fun LocalTime.toShiftLabel(): String = ShiftClockFormatter.format(this).lowercase(Locale.getDefault())
 
 @Composable
 fun CreateAccountScreen(
@@ -58,8 +67,8 @@ fun CreateAccountScreen(
         uiState = uiState,
         onBackClick = onBackClick,
         onNavigateToSignIn = onNavigateToSignIn,
-        onCreateAccountClick = { name, email, password, shift ->
-            viewModel.createAccount(name, email, password, shift, onAccountCreated)
+        onCreateAccountClick = { name, email, password, shiftStart, shiftEnd ->
+            viewModel.createAccount(name, email, password, shiftStart, shiftEnd, onAccountCreated)
         },
         onGoogleSignInClick = {
             scope.launch {
@@ -75,25 +84,19 @@ fun CreateAccountScreen(
     )
 }
 
-/** Reference shift options — no shift-schedule backend exists yet, so this is a fixed list. */
-val ShiftOptions = listOf(
-    "Morning · 9:00 am – 5:30 pm",
-    "Afternoon · 1:00 pm – 9:30 pm",
-    "Night · 9:00 pm – 5:30 am",
-)
-
 @Composable
 fun CreateAccountContent(
     uiState: AuthUiState,
     onBackClick: () -> Unit,
     onNavigateToSignIn: () -> Unit,
-    onCreateAccountClick: (name: String, email: String, password: String, shift: String) -> Unit,
+    onCreateAccountClick: (name: String, email: String, password: String, shiftStart: LocalTime, shiftEnd: LocalTime) -> Unit,
     onGoogleSignInClick: () -> Unit,
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var shift by remember { mutableStateOf(ShiftOptions.first()) }
+    var shiftStart by remember { mutableStateOf(LocalTime.of(9, 0)) }
+    var shiftEnd by remember { mutableStateOf(LocalTime.of(17, 30)) }
 
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
@@ -151,7 +154,11 @@ fun CreateAccountContent(
             errorText = passwordError,
         )
         Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-        ShiftSelectorField(selectedShift = shift, onShiftSelected = { shift = it })
+        ShiftSelectorField(
+            shiftStart = shiftStart,
+            shiftEnd = shiftEnd,
+            onShiftChanged = { start, end -> shiftStart = start; shiftEnd = end },
+        )
 
         if (uiState.errorMessage != null) {
             Spacer(modifier = Modifier.height(OrbitSpacing.lg))
@@ -182,7 +189,7 @@ fun CreateAccountContent(
                     emailError = eErr
                     passwordError = pErr
                     if (nErr == null && eErr == null && pErr == null) {
-                        onCreateAccountClick(name, email, password, shift)
+                        onCreateAccountClick(name, email, password, shiftStart, shiftEnd)
                     }
                 },
             )
@@ -202,14 +209,20 @@ fun CreateAccountContent(
     }
 }
 
-/** Reference "SHIFT" row: same cream-box label field as [OrbitTextField], styled as a dropdown. */
+/**
+ * Reference "SHIFT" row: same cream-box label field as [OrbitTextField]. Tapping it opens a
+ * dialog to set the user's own shift start/end time — there's no fixed set of shifts, and each
+ * user's late-arrival threshold is later computed from exactly this start time (see
+ * [com.hasim.orbittime.util.AttendanceStats]), so it has to be a real time, not a preset label.
+ */
 @Composable
 private fun ShiftSelectorField(
-    selectedShift: String,
-    onShiftSelected: (String) -> Unit,
+    shiftStart: LocalTime,
+    shiftEnd: LocalTime,
+    onShiftChanged: (LocalTime, LocalTime) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
         Text(
@@ -222,13 +235,13 @@ private fun ShiftSelectorField(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(OrbitColors.cream50, OrbitShapes.medium)
-                .clickable { expanded = true }
+                .clickable { showDialog = true }
                 .padding(horizontal = OrbitSpacing.lg, vertical = OrbitSpacing.md),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = selectedShift,
+                text = "${shiftStart.toShiftLabel()} – ${shiftEnd.toShiftLabel()}",
                 style = OrbitTypography.bodyLarge,
                 color = OrbitColors.ink900,
             )
@@ -238,16 +251,54 @@ private fun ShiftSelectorField(
                 color = OrbitColors.slate500,
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            ShiftOptions.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onShiftSelected(option)
-                        expanded = false
-                    },
-                )
-            }
-        }
     }
+
+    if (showDialog) {
+        ShiftTimeDialog(
+            initialStart = shiftStart,
+            initialEnd = shiftEnd,
+            onConfirm = { start, end ->
+                onShiftChanged(start, end)
+                showDialog = false
+            },
+            onDismiss = { showDialog = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ShiftTimeDialog(
+    initialStart: LocalTime,
+    initialEnd: LocalTime,
+    onConfirm: (LocalTime, LocalTime) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val startState = rememberTimePickerState(initialHour = initialStart.hour, initialMinute = initialStart.minute, is24Hour = false)
+    val endState = rememberTimePickerState(initialHour = initialEnd.hour, initialMinute = initialEnd.minute, is24Hour = false)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "Set your shift", style = OrbitTypography.titleMedium) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+                Text(text = "Shift start", style = OrbitTypography.label, color = OrbitColors.slate500)
+                TimeInput(state = startState)
+                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+                Text(text = "Shift end", style = OrbitTypography.label, color = OrbitColors.slate500)
+                TimeInput(state = endState)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onConfirm(
+                    LocalTime.of(startState.hour, startState.minute),
+                    LocalTime.of(endState.hour, endState.minute),
+                )
+            }) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
 }

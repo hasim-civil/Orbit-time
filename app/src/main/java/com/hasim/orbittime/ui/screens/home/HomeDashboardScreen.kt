@@ -126,34 +126,34 @@ fun HomeDashboardContent(
                         .cardRiseEntrance(),
                 ) {
                     if (uiState.isLoading) {
-                        LoadingBox(height = 200.dp)
+                        LoadingBox(height = 160.dp)
                     } else {
                         GreetingCard(userDisplayName, uiState)
                     }
 
-                    Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
                     if (uiState.summaryErrorMessage != null) {
                         InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
                     } else if (!uiState.isOnline) {
                         InlineBanner(
                             text = "You're offline. Showing the last synced attendance data.",
                             color = OrbitColors.warningDark,
                             background = OrbitColors.warningBg,
                         )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
                     }
 
                     if (uiState.isSummaryLoading) {
-                        LoadingBox(height = 260.dp)
+                        LoadingBox(height = 200.dp)
                     } else {
                         MonthlyAttendanceCard(
                             summary = uiState.summary,
                             rangeMode = uiState.rangeMode,
                             onRangeModeSelected = onRangeModeSelected,
                         )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
                         AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
                     }
 
@@ -179,37 +179,30 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.lg),
+            .padding(OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${AttendanceTimeFormat.greeting()}${if (userDisplayName.isBlank()) "" else ", $userDisplayName"}",
-                    style = OrbitTypography.headline,
+                    style = OrbitTypography.titleLarge,
                     color = OrbitColors.ink900,
                 )
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
                 Text(
-                    text = "${AttendanceTimeFormat.dayOfWeekAndDate(today)} · Morning shift",
+                    text = AttendanceTimeFormat.dayOfWeekAndDate(today),
                     style = OrbitTypography.bodyMedium,
                     color = OrbitColors.slate600,
                 )
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = AttendanceTimeFormat.clockTime(Instant.now()),
-                    style = OrbitTypography.bodyMedium,
-                    color = OrbitColors.ink900,
-                )
-                Text(
-                    text = "LOCAL",
-                    style = OrbitTypography.label,
-                    color = OrbitColors.slate500,
-                )
-            }
+            Text(
+                text = AttendanceTimeFormat.clockTime(Instant.now()),
+                style = OrbitTypography.bodyMedium,
+                color = OrbitColors.ink900,
+            )
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         val statusText = when {
             uiState.isCompleted -> "Checked out"
@@ -228,11 +221,11 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(
             modifier = Modifier.height(IntrinsicSize.Max),
-            horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.md),
+            horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm),
         ) {
             HomeStatCell(
                 modifier = Modifier.weight(1f).fillMaxHeight(),
@@ -284,7 +277,7 @@ private fun HomeStatCell(label: String, value: String, modifier: Modifier = Modi
                 if (emphasized) OrbitColors.ink900 else OrbitColors.mist,
                 OrbitShapes.medium,
             )
-            .padding(OrbitSpacing.md),
+            .padding(OrbitSpacing.sm),
     ) {
         Text(
             text = label,
@@ -317,7 +310,7 @@ private fun MonthlyAttendanceCard(
                 brush = Brush.linearGradient(colors = listOf(OrbitColors.void300, OrbitColors.void600, OrbitColors.void900)),
                 shape = OrbitShapes.card,
             )
-            .padding(OrbitSpacing.lg),
+            .padding(OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -332,17 +325,17 @@ private fun MonthlyAttendanceCard(
             RangeModeToggle(selected = rangeMode, onSelected = onRangeModeSelected)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent)
+            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 100.dp)
 
-            Spacer(modifier = Modifier.width(OrbitSpacing.lg))
+            Spacer(modifier = Modifier.width(OrbitSpacing.md))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "${summary.attendanceRatePercent}%", style = OrbitTypography.displayMedium, color = OrbitColors.cream50)
                 Text(text = "attendance rate", style = OrbitTypography.bodyMedium, color = OrbitColors.slate300)
-                Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
                 LegendRow(color = OrbitColors.success, text = "${summary.presentDays} present")
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
                 LegendRow(color = OrbitColors.warning, text = "${summary.absentDays} absent · ${summary.lateDays} late")
@@ -499,7 +492,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.lg),
+            .padding(OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -515,17 +508,17 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             )
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.md)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.success, background = OrbitColors.successBg, value = summary.presentDays.toString(), label = "Present")
             SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.danger, background = OrbitColors.dangerBg, value = summary.absentDays.toString(), label = "Absent")
             SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.warning, background = OrbitColors.warningBg, value = summary.lateDays.toString(), label = "Late")
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.md)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(
                 modifier = Modifier.weight(1f),
                 dotColor = OrbitColors.accent,
@@ -550,7 +543,7 @@ private fun SummaryCell(modifier: Modifier, dotColor: Color, background: Color, 
     Column(
         modifier = modifier
             .background(background, OrbitShapes.medium)
-            .padding(OrbitSpacing.md),
+            .padding(OrbitSpacing.sm),
     ) {
         Box(modifier = Modifier.size(8.dp).background(dotColor, CircleShape))
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))

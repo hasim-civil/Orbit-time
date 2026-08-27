@@ -5,12 +5,14 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.observeIsOnline
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,11 +45,15 @@ class TimesheetViewModel(
 
     private val authRepository = AuthRepository()
     private val attendanceRepository = AttendanceRepository()
+    private val profileRepository = UserProfileRepository()
 
     private val _uiState = MutableStateFlow(TimesheetUiState())
     val uiState: StateFlow<TimesheetUiState> = _uiState.asStateFlow()
 
     private var rangeJob: Job? = null
+
+    /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
+    private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
 
     init {
         val uid = authRepository.currentUser?.uid
@@ -56,6 +62,18 @@ class TimesheetViewModel(
         } else {
             observeConnectivity()
             observeMonth(uid, _uiState.value.displayedMonth)
+            loadShiftStart(uid)
+        }
+    }
+
+    private fun loadShiftStart(uid: String) {
+        viewModelScope.launch {
+            val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
+            val parsed = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            if (parsed != null) {
+                lateAfter = parsed
+                observeMonth(uid, _uiState.value.displayedMonth)
+            }
         }
     }
 
@@ -91,7 +109,7 @@ class TimesheetViewModel(
                             date = date,
                             checkInAt = checkInAt,
                             checkOutAt = checkOutAt,
-                            status = AttendanceStats.classifyDay(checkInAt, date, today),
+                            status = AttendanceStats.classifyDay(checkInAt, date, today, lateAfter = lateAfter),
                         )
                     }
 

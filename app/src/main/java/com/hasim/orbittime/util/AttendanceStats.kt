@@ -32,15 +32,18 @@ data class AttendanceSummary(
 
 /**
  * Pure attendance-rollup math — no Firebase or Android types — so the schedule
- * rules (Mon–Sat, late after 11:00, overtime past 8h/day) stay testable outside
- * an Android runtime, matching every other calculation in this app.
+ * rules (Mon–Sat, late after each user's own shift start, overtime past 8h/day)
+ * stay testable outside an Android runtime, matching every other calculation in
+ * this app.
  */
 object AttendanceStats {
     private val SCHEDULED_DAYS = setOf(
         DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY,
     )
-    private val LATE_AFTER = LocalTime.of(11, 0)
+
+    /** Fallback only for a profile that hasn't loaded its own shift start yet. */
+    val DEFAULT_LATE_AFTER: LocalTime = LocalTime.of(9, 0)
     val OVERTIME_AFTER: Duration = Duration.ofHours(8)
 
     fun summarize(
@@ -51,6 +54,7 @@ object AttendanceStats {
         rangeLabel: String,
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
+        lateAfter: LocalTime = DEFAULT_LATE_AFTER,
     ): AttendanceSummary {
         var present = 0
         var absent = 0
@@ -66,7 +70,7 @@ object AttendanceStats {
                 when {
                     checkInAt != null -> {
                         present += 1
-                        if (checkInAt.atZone(zone).toLocalTime().isAfter(LATE_AFTER)) late += 1
+                        if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) late += 1
 
                         val end = record.checkOutAt ?: if (date == today) now else null
                         if (end != null) {
@@ -105,10 +109,11 @@ object AttendanceStats {
         date: LocalDate,
         today: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
+        lateAfter: LocalTime = DEFAULT_LATE_AFTER,
     ): AttendanceStatus? {
         if (date.dayOfWeek !in SCHEDULED_DAYS) return null
         return when {
-            checkInAt != null -> if (checkInAt.atZone(zone).toLocalTime().isAfter(LATE_AFTER)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
+            checkInAt != null -> if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
             date.isBefore(today) -> AttendanceStatus.ABSENT
             else -> null
         }

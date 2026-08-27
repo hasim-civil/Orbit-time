@@ -3,8 +3,10 @@ package com.hasim.orbittime.ui.screens.punch
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceSummary
@@ -59,6 +61,7 @@ class AttendanceViewModel(
 
     private val authRepository = AuthRepository()
     private val attendanceRepository = AttendanceRepository()
+    private val profileRepository = UserProfileRepository()
     private val todayDate = AttendanceTimeFormat.today()
     private val todayKey = AttendanceTimeFormat.dateKey(todayDate)
 
@@ -68,6 +71,9 @@ class AttendanceViewModel(
     private val weekEnd = todayDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
 
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
+
+    /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
+    private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
 
     private val _uiState = MutableStateFlow(PunchUiState())
     val uiState: StateFlow<PunchUiState> = _uiState.asStateFlow()
@@ -81,6 +87,18 @@ class AttendanceViewModel(
             observeMonthRange(uid)
             observeConnectivity()
             tickElapsedWhileRunning()
+            loadShiftStart(uid)
+        }
+    }
+
+    private fun loadShiftStart(uid: String) {
+        viewModelScope.launch {
+            val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
+            val parsed = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            if (parsed != null) {
+                lateAfter = parsed
+                recomputeSummary()
+            }
         }
     }
 
@@ -139,6 +157,7 @@ class AttendanceViewModel(
                 rangeEnd = monthEnd,
                 today = todayDate,
                 rangeLabel = AttendanceTimeFormat.monthLabel(todayDate),
+                lateAfter = lateAfter,
             )
             AttendanceRangeMode.WEEK -> AttendanceStats.summarize(
                 records = rangeRecords,
@@ -146,6 +165,7 @@ class AttendanceViewModel(
                 rangeEnd = weekEnd,
                 today = todayDate,
                 rangeLabel = AttendanceTimeFormat.weekRangeLabel(weekStart, weekEnd),
+                lateAfter = lateAfter,
             )
         }
         _uiState.update { it.copy(isSummaryLoading = false, summary = summary) }
@@ -200,7 +220,7 @@ class AttendanceViewModel(
     }
 
     /** Corrects today's punch times — e.g. a forgotten check-in or a check-out that ran a few minutes late. */
-    fun editTodayTimes(checkInTime: LocalTime, checkOutTime: LocalTime?) {
+    fun editTodayTimes(checkInTime: LocalTime, checkOutTime: LocalTime?, location: AttendanceLocation?) {
         val uid = authRepository.currentUser?.uid ?: return
         viewModelScope.launch {
             attendanceRepository.setManualTimes(
@@ -208,12 +228,13 @@ class AttendanceViewModel(
                 date = todayKey,
                 checkInAt = checkInTime.toTimestamp(todayDate),
                 checkOutAt = checkOutTime?.toTimestamp(todayDate),
+                location = location,
             ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
     }
 
     /** Backfills a day that was never punched — a full check-in/check-out pair for a past date. */
-    fun addPastAttendance(date: LocalDate, checkInTime: LocalTime, checkOutTime: LocalTime) {
+    fun addPastAttendance(date: LocalDate, checkInTime: LocalTime, checkOutTime: LocalTime, location: AttendanceLocation?) {
         val uid = authRepository.currentUser?.uid ?: return
         viewModelScope.launch {
             attendanceRepository.setManualTimes(
@@ -221,6 +242,7 @@ class AttendanceViewModel(
                 date = AttendanceTimeFormat.dateKey(date),
                 checkInAt = checkInTime.toTimestamp(date),
                 checkOutAt = checkOutTime.toTimestamp(date),
+                location = location,
             ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
     }

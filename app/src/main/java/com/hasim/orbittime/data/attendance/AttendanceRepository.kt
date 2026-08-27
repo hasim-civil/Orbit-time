@@ -99,10 +99,17 @@ class AttendanceRepository(
      * write, so a plain merge-set is enough; a null field is left untouched rather than
      * cleared, so editing just the check-in time doesn't wipe an existing check-out.
      */
-    suspend fun setManualTimes(uid: String, date: String, checkInAt: Timestamp?, checkOutAt: Timestamp?): Result<Unit> = runCatching {
+    suspend fun setManualTimes(
+        uid: String,
+        date: String,
+        checkInAt: Timestamp?,
+        checkOutAt: Timestamp?,
+        location: AttendanceLocation? = null,
+    ): Result<Unit> = runCatching {
         val data = mutableMapOf<String, Any>("date" to date)
         checkInAt?.let { data["checkInAt"] = it }
         checkOutAt?.let { data["checkOutAt"] = it }
+        location?.let { data["location"] = it.name }
         dayDoc(uid, date).set(data, SetOptions.merge()).await()
         Unit
     }.recoverCatching { throwable ->

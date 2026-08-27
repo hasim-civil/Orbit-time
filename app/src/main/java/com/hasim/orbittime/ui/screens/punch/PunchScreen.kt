@@ -37,11 +37,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.ui.components.InlineBanner
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
@@ -94,8 +97,8 @@ fun PunchContent(
     onTabSelected: (OrbitTab) -> Unit,
     onCheckInClick: () -> Unit,
     onCheckOutClick: () -> Unit,
-    onEditTime: (LocalTime, LocalTime?) -> Unit = { _, _ -> },
-    onAddPastAttendance: (LocalDate, LocalTime, LocalTime) -> Unit = { _, _, _ -> },
+    onEditTime: (LocalTime, LocalTime?, AttendanceLocation?) -> Unit = { _, _, _ -> },
+    onAddPastAttendance: (LocalDate, LocalTime, LocalTime, AttendanceLocation?) -> Unit = { _, _, _, _ -> },
 ) {
     var showEditTimeDialog by remember { mutableStateOf(false) }
     var showPastDatePicker by remember { mutableStateOf(false) }
@@ -182,8 +185,8 @@ fun PunchContent(
                 initialCheckIn = uiState.checkInAt.atZone(zone).toLocalTime(),
                 initialCheckOut = (uiState.checkOutAt ?: Instant.now()).atZone(zone).toLocalTime(),
                 confirmLabel = "Save",
-                onConfirm = { checkIn, checkOut ->
-                    onEditTime(checkIn, checkOut)
+                onConfirm = { checkIn, checkOut, location ->
+                    onEditTime(checkIn, checkOut, location)
                     showEditTimeDialog = false
                 },
                 onDismiss = { showEditTimeDialog = false },
@@ -207,8 +210,8 @@ fun PunchContent(
                 initialCheckIn = LocalTime.of(9, 0),
                 initialCheckOut = LocalTime.of(17, 30),
                 confirmLabel = "Add",
-                onConfirm = { checkIn, checkOut ->
-                    onAddPastAttendance(selectedPastDate, checkIn, checkOut)
+                onConfirm = { checkIn, checkOut, location ->
+                    onAddPastAttendance(selectedPastDate, checkIn, checkOut, location)
                     pastAttendanceDate = null
                 },
                 onDismiss = { pastAttendanceDate = null },
@@ -224,11 +227,12 @@ private fun TimeRangeDialog(
     initialCheckIn: LocalTime,
     initialCheckOut: LocalTime,
     confirmLabel: String,
-    onConfirm: (LocalTime, LocalTime) -> Unit,
+    onConfirm: (LocalTime, LocalTime, AttendanceLocation?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val checkInState = rememberTimePickerState(initialHour = initialCheckIn.hour, initialMinute = initialCheckIn.minute, is24Hour = false)
     val checkOutState = rememberTimePickerState(initialHour = initialCheckOut.hour, initialMinute = initialCheckOut.minute, is24Hour = false)
+    var location by remember { mutableStateOf<AttendanceLocation?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -240,6 +244,10 @@ private fun TimeRangeDialog(
                 Spacer(modifier = Modifier.height(OrbitSpacing.xs))
                 Text(text = "Check out", style = OrbitTypography.label, color = OrbitColors.slate500)
                 TimeInput(state = checkOutState)
+                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+                Text(text = "Location", style = OrbitTypography.label, color = OrbitColors.slate500)
+                Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
+                LocationSelector(selected = location, onSelected = { location = it })
             }
         },
         confirmButton = {
@@ -247,6 +255,7 @@ private fun TimeRangeDialog(
                 onConfirm(
                     LocalTime.of(checkInState.hour, checkInState.minute),
                     LocalTime.of(checkOutState.hour, checkOutState.minute),
+                    location,
                 )
             }) { Text(confirmLabel) }
         },
@@ -254,6 +263,33 @@ private fun TimeRangeDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+}
+
+@Composable
+private fun LocationSelector(selected: AttendanceLocation?, onSelected: (AttendanceLocation) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.xs)) {
+        AttendanceLocation.entries.forEach { location ->
+            val isSelected = location == selected
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(OrbitShapes.small)
+                    .background(if (isSelected) OrbitColors.violet600 else OrbitColors.mist)
+                    .clickable { onSelected(location) }
+                    .padding(vertical = OrbitSpacing.xs, horizontal = OrbitSpacing.xxs),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = location.label,
+                    style = OrbitTypography.bodySmall,
+                    color = if (isSelected) OrbitColors.cream50 else OrbitColors.slate600,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

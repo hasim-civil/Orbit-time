@@ -71,7 +71,7 @@ private val ButtonGlowDiameter = 84.dp
 // The button's top edge sits this far above the pill's top edge — the rest of its height
 // (ButtonDiameter minus this) overlaps down into the pill. The component's own height must
 // span from the button's top down to the pill's bottom, or the protrusion gets clipped.
-private val ButtonAbovePill = 24.dp
+private val ButtonAbovePill = 16.dp
 private val NavComponentHeight = ButtonAbovePill + PillHeight
 
 /** The reference's fixed side/bottom margins for the floating pill. */

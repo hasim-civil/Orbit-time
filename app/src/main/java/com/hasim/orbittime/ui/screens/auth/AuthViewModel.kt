@@ -5,10 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.user.UserProfile
 import com.hasim.orbittime.data.user.UserProfileRepository
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+private val ShiftTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
  * Backs both the Sign In and Create Account screens: they share the same
@@ -37,12 +41,18 @@ class AuthViewModel(
         }
     }
 
-    fun createAccount(name: String, email: String, password: String, shift: String, onSuccess: () -> Unit) {
+    fun createAccount(name: String, email: String, password: String, shiftStart: LocalTime, shiftEnd: LocalTime, onSuccess: () -> Unit) {
         _uiState.value = AuthUiState(isLoading = true)
         viewModelScope.launch {
             authRepository.createAccount(name, email, password)
                 .onSuccess { user ->
-                    val profile = UserProfile(uid = user.uid, name = name.trim(), email = email.trim(), shift = shift)
+                    val profile = UserProfile(
+                        uid = user.uid,
+                        name = name.trim(),
+                        email = email.trim(),
+                        shiftStart = ShiftTimeFormatter.format(shiftStart),
+                        shiftEnd = ShiftTimeFormatter.format(shiftEnd),
+                    )
                     runCatching { profileRepository.saveProfile(profile) }
                     _uiState.value = AuthUiState(isLoading = false)
                     onSuccess()
