@@ -417,19 +417,17 @@ private fun CheckInOutMiniCards(uiState: PunchUiState) {
             modifier = Modifier.weight(1f),
             label = "CHECKED IN",
             value = uiState.checkInAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
-            caption = "Morning shift",
         )
         MiniStatCard(
             modifier = Modifier.weight(1f),
             label = "CHECKED OUT",
             value = uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "—",
-            caption = "of 8.5h shift",
         )
     }
 }
 
 @Composable
-private fun MiniStatCard(label: String, value: String, caption: String, modifier: Modifier = Modifier) {
+private fun MiniStatCard(label: String, value: String, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .background(
@@ -441,8 +439,6 @@ private fun MiniStatCard(label: String, value: String, caption: String, modifier
         Text(text = label, style = OrbitTypography.label, color = OrbitColors.slate300)
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
         Text(text = value, style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
-        Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-        Text(text = caption, style = OrbitTypography.bodySmall, color = OrbitColors.slate300)
     }
 }
 

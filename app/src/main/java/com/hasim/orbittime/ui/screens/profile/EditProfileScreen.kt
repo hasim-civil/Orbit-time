@@ -63,9 +63,7 @@ fun EditProfileScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
 
-    LaunchedEffect(uiState.saved) {
-        if (uiState.saved) onSaved()
-    }
+    LaunchedEffect(Unit) { viewModel.dismissError() }
 
     var name by remember(uiState.isLoading) { mutableStateOf(uiState.name) }
     var email by remember(uiState.isLoading) { mutableStateOf(uiState.email) }
@@ -174,7 +172,7 @@ fun EditProfileScreen(
         } else {
             OrbitGradientButton(
                 text = "Save changes",
-                onClick = { viewModel.save(name, email, role, shiftStart, shiftEnd, password) },
+                onClick = { viewModel.save(name, email, role, shiftStart, shiftEnd, password, onSaved) },
             )
         }
     }

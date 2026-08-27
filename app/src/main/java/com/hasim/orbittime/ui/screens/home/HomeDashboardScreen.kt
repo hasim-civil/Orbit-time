@@ -328,7 +328,7 @@ private fun MonthlyAttendanceCard(
         Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 100.dp)
+            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 128.dp)
 
             Spacer(modifier = Modifier.width(OrbitSpacing.md))
 
@@ -435,7 +435,10 @@ private fun AttendanceRing(
             drawCircle(color = Color.White.copy(alpha = 0.85f), radius = strokeWidth * 0.32f, center = cometCenter)
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            modifier = Modifier.width(diameter * 0.62f),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Text(text = presentDays.toString(), style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
             Text(
                 text = "DAYS PRESENT",

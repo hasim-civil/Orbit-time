@@ -312,15 +312,6 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, onAvatarClick: () -> Unit
                         )
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .align(Alignment.BottomEnd)
-                        .background(OrbitColors.cream50, CircleShape),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    PencilIcon(tint = OrbitColors.ink900, size = 12.dp)
-                }
             }
 
             Column(modifier = Modifier.weight(1f)) {
@@ -498,22 +489,5 @@ private fun PlusIcon(size: Dp = 16.dp) {
         fun px(v: Float) = v * scale
         drawLine(OrbitColors.successDark, Offset(px(10f), px(4.5f)), Offset(px(10f), px(15.5f)), strokeWidth = px(1.6f))
         drawLine(OrbitColors.successDark, Offset(px(4.5f), px(10f)), Offset(px(15.5f), px(10f)), strokeWidth = px(1.6f))
-    }
-}
-
-@Composable
-private fun PencilIcon(tint: Color, size: Dp) {
-    Canvas(modifier = Modifier.size(size)) {
-        val scale = this.size.minDimension / 20f
-        fun px(v: Float) = v * scale
-        val path = Path().apply {
-            moveTo(px(3.5f), px(15.5f))
-            lineTo(px(7.5f), px(15.5f))
-            lineTo(px(15.5f), px(7.5f))
-            lineTo(px(11.5f), px(3.5f))
-            lineTo(px(3.5f), px(11.5f))
-            close()
-        }
-        drawPath(path, color = tint, style = Stroke(width = px(1.8f)))
     }
 }

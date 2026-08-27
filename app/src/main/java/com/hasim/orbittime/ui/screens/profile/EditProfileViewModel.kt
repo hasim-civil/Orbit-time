@@ -31,7 +31,6 @@ data class EditProfileUiState(
     val shiftEnd: LocalTime = LocalTime.of(17, 30),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
-    val saved: Boolean = false,
 )
 
 /** Backs the Edit Profile screen: loads the real signed-in user's data, then saves any changes
@@ -72,6 +71,13 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         }
     }
 
+    /** Clears a leftover error banner from a previous visit — this ViewModel is scoped to the
+     * whole signed-in session, not just one visit to this screen, so it outlives a single "in
+     * and back out" round trip. */
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null) }
+    }
+
     fun onPhotoPicked(uri: Uri) {
         pendingPhotoUri = uri
         _uiState.update { it.copy(localPhotoPreview = uri) }
@@ -84,6 +90,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         shiftStart: LocalTime,
         shiftEnd: LocalTime,
         newPassword: String,
+        onSaved: () -> Unit,
     ) {
         val uid = authRepository.currentUser?.uid
         if (uid == null) {
@@ -136,7 +143,28 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
             runCatching { profileRepository.saveProfile(profile) }
                 .onFailure { error -> firstError = firstError ?: (error.message ?: "Couldn't save your profile.") }
 
-            _uiState.update { it.copy(isSaving = false, errorMessage = firstError, saved = firstError == null) }
+            val succeeded = firstError == null
+            _uiState.update {
+                if (!succeeded) {
+                    it.copy(isSaving = false, errorMessage = firstError)
+                } else {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = null,
+                        name = profile.name,
+                        email = profile.email,
+                        role = profile.role,
+                        photoBase64 = profile.photoBase64,
+                        localPhotoPreview = null,
+                        shiftStart = shiftStart,
+                        shiftEnd = shiftEnd,
+                    )
+                }
+            }
+            if (succeeded) {
+                pendingPhotoUri = null
+                onSaved()
+            }
         }
     }
 }
