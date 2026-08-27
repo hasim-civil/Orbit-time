@@ -75,6 +75,9 @@ fun PunchScreen(
     userInitials: String,
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     viewModel: AttendanceViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -89,6 +92,9 @@ fun PunchScreen(
         onEditTime = viewModel::editTodayTimes,
         onAddPastAttendance = viewModel::addPastAttendance,
         onSuccessMessageConsumed = viewModel::consumeSuccessMessage,
+        photoBase64 = photoBase64,
+        hasNotification = hasNotification,
+        onBellClick = onBellClick,
     )
 }
 
@@ -103,6 +109,9 @@ fun PunchContent(
     onEditTime: (LocalTime, LocalTime?, AttendanceLocation?) -> Unit = { _, _, _ -> },
     onAddPastAttendance: (LocalDate, LocalTime, LocalTime, AttendanceLocation?) -> Unit = { _, _, _, _ -> },
     onSuccessMessageConsumed: () -> Unit = {},
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
 ) {
     var showEditTimeDialog by remember { mutableStateOf(false) }
     var pastAttendanceDate by remember { mutableStateOf<LocalDate?>(AttendanceTimeFormat.today()) }
@@ -126,7 +135,9 @@ fun PunchContent(
             ) {
                 OrbitTopAppBar(
                     userInitials = userInitials,
-                    hasNotification = true,
+                    photoBase64 = photoBase64,
+                    hasNotification = hasNotification,
+                    onBellClick = onBellClick,
                     onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
                 )
 

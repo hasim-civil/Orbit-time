@@ -69,6 +69,7 @@ fun EditProfileScreen(
     var name by remember(uiState.isLoading) { mutableStateOf(uiState.name) }
     var email by remember(uiState.isLoading) { mutableStateOf(uiState.email) }
     var role by remember(uiState.isLoading) { mutableStateOf(uiState.role) }
+    var company by remember(uiState.isLoading) { mutableStateOf(uiState.company) }
     var password by remember { mutableStateOf("") }
     var shiftStart by remember(uiState.isLoading) { mutableStateOf(uiState.shiftStart) }
     var shiftEnd by remember(uiState.isLoading) { mutableStateOf(uiState.shiftEnd) }
@@ -134,6 +135,8 @@ fun EditProfileScreen(
         Spacer(modifier = Modifier.height(OrbitSpacing.lg))
         OrbitTextField(label = "ROLE", value = role, onValueChange = { role = it })
         Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+        OrbitTextField(label = "COMPANY", value = company, onValueChange = { company = it })
+        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
 
         Column {
             Text(text = "SHIFT", style = OrbitTypography.label, color = OrbitColors.slate500)
@@ -175,7 +178,7 @@ fun EditProfileScreen(
         } else {
             OrbitGradientButton(
                 text = "Save changes",
-                onClick = { viewModel.save(name, email, role, shiftStart, shiftEnd, password, onSaved) },
+                onClick = { viewModel.save(name, email, role, company, shiftStart, shiftEnd, password, onSaved) },
             )
         }
 

@@ -10,6 +10,7 @@ data class UserProfile(
     val name: String = "",
     val email: String = "",
     val role: String = "",
+    val company: String = "",
     val photoBase64: String = "",
     val shiftStart: String = "09:00",
     val shiftEnd: String = "17:30",

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -83,8 +84,6 @@ private val NameStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = Fon
 private val SubtitleStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 12.sp)
 private val RowLabelStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
 private val RowHintStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 11.5.sp)
-private val SectionLabelStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 11.sp, letterSpacing = 0.9.sp)
-private val DetailKeyStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 12.5.sp)
 private val DetailValueStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
 private val SignOutStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
 private val FooterCreditStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 17.sp)
@@ -100,6 +99,9 @@ fun ProfileScreen(
     onTabSelected: (OrbitTab) -> Unit,
     onSignOutClick: () -> Unit,
     onAccountDeleted: () -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -115,16 +117,16 @@ fun ProfileScreen(
             selectedTab = selectedTab,
             onTabSelected = onTabSelected,
             onSignOutClick = onSignOutClick,
+            photoBase64 = photoBase64,
+            hasNotification = hasNotification,
+            onBellClick = onBellClick,
             onEditProfileClick = { subScreen = ProfileSubScreen.EDIT_PROFILE },
             onHolidayListClick = { subScreen = ProfileSubScreen.HOLIDAY_LIST },
             onAddLeaveClick = { subScreen = ProfileSubScreen.ADD_LEAVE },
         )
         ProfileSubScreen.EDIT_PROFILE -> EditProfileScreen(
             onBackClick = { subScreen = ProfileSubScreen.MAIN },
-            onSaved = {
-                viewModel.refresh()
-                subScreen = ProfileSubScreen.MAIN
-            },
+            onSaved = { subScreen = ProfileSubScreen.MAIN },
             onAccountDeleted = onAccountDeleted,
         )
         ProfileSubScreen.HOLIDAY_LIST -> HolidayListScreen(
@@ -142,6 +144,9 @@ fun ProfileContent(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     onSignOutClick: () -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     onEditProfileClick: () -> Unit = {},
     onHolidayListClick: () -> Unit = {},
     onAddLeaveClick: () -> Unit = {},
@@ -158,6 +163,9 @@ fun ProfileContent(
         ) {
             OrbitTopAppBar(
                 userInitials = uiState.initials,
+                photoBase64 = photoBase64,
+                hasNotification = hasNotification,
+                onBellClick = onBellClick,
                 onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
             )
 
@@ -172,7 +180,7 @@ fun ProfileContent(
                 ) {
                     Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
-                    ProfileHeaderCard(uiState, onAvatarClick = onEditProfileClick)
+                    ProfileHeaderCard(uiState, photoBase64 = photoBase64, onAvatarClick = onEditProfileClick)
 
                     ProfileMenuRow(
                         icon = { PersonIcon() },
@@ -196,7 +204,7 @@ fun ProfileContent(
                         onClick = onAddLeaveClick,
                     )
 
-                    WorkDetailsCard(uiState)
+                    ProfileValuesGrid(uiState)
 
                     SignOutRow(onClick = { showSignOutConfirm = true })
 
@@ -234,7 +242,7 @@ fun ProfileContent(
  * for their own radial-gradient references, so this stays visually consistent with them.
  */
 @Composable
-private fun ProfileHeaderCard(uiState: ProfileUiState, onAvatarClick: () -> Unit) {
+private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAvatarClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -285,8 +293,8 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, onAvatarClick: () -> Unit
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(modifier = Modifier.size(64.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
-                val decodedPhoto = remember(uiState.photoBase64) {
-                    uiState.photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
+                val decodedPhoto = remember(photoBase64) {
+                    photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
                 }
                 if (decodedPhoto != null) {
                     Image(
@@ -374,8 +382,13 @@ private fun ProfileMenuRow(
     }
 }
 
+/**
+ * Compact values-only area replacing the old oversized "WORK DETAILS" card: just the user's own
+ * saved email/shift/role/company, two per row, with no labels or heading — per the explicit
+ * instruction that this occupy significantly less vertical space than a full card.
+ */
 @Composable
-private fun WorkDetailsCard(uiState: ProfileUiState) {
+private fun ProfileValuesGrid(uiState: ProfileUiState) {
     val shiftLabel = if (uiState.shiftStart != null && uiState.shiftEnd != null) {
         val start = formatShiftTime(uiState.shiftStart)
         val end = formatShiftTime(uiState.shiftEnd)
@@ -385,31 +398,20 @@ private fun WorkDetailsCard(uiState: ProfileUiState) {
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(OrbitColors.cream50.copy(alpha = 0.96f))
-            .padding(20.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(text = "WORK DETAILS", style = SectionLabelStyle, color = OrbitColors.slate500)
-        Spacer(modifier = Modifier.height(14.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-            DetailRow(key = "Email", value = uiState.email.ifBlank { "—" })
-            if (uiState.role.isNotBlank()) {
-                DetailRow(key = "Role", value = uiState.role)
-            }
-            if (shiftLabel != null) {
-                DetailRow(key = "Shift", value = shiftLabel)
-            }
-        }
+        ProfileValuesRow(left = uiState.email.ifBlank { "—" }, right = shiftLabel ?: "—")
+        ProfileValuesRow(left = uiState.role.ifBlank { "—" }, right = uiState.company.ifBlank { "—" })
     }
 }
 
 @Composable
-private fun DetailRow(key: String, value: String) {
+private fun ProfileValuesRow(left: String, right: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = key, style = DetailKeyStyle, color = OrbitColors.slate600, maxLines = 1)
-        Text(text = value, style = DetailValueStyle, color = OrbitColors.ink900, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text = left, style = DetailValueStyle, color = OrbitColors.ink900, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.width(OrbitSpacing.md))
+        Text(text = right, style = DetailValueStyle, color = OrbitColors.slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

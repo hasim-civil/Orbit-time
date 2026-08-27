@@ -37,6 +37,9 @@ fun ComingSoonScreen(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     modifier: Modifier = Modifier,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     signOutButton: (@Composable () -> Unit)? = null,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -49,6 +52,9 @@ fun ComingSoonScreen(
         ) {
             OrbitTopAppBar(
                 userInitials = userInitials,
+                photoBase64 = photoBase64,
+                hasNotification = hasNotification,
+                onBellClick = onBellClick,
                 onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
             )
 

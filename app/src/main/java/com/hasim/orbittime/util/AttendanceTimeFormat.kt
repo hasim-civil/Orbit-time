@@ -12,6 +12,7 @@ import java.util.Locale
 /** Pure date/time formatting for the attendance screens — no Android or Firebase types. */
 object AttendanceTimeFormat {
     private val dayLabelFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault())
+    private val shortDayLabelFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
     private val clockFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
     private val monthLabelFormatter = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
     private val weekStartFormatter = DateTimeFormatter.ofPattern("d", Locale.getDefault())
@@ -24,6 +25,9 @@ object AttendanceTimeFormat {
 
     /** "MONDAY 24 AUGUST" style label for the punch hero card. */
     fun dayLabel(date: LocalDate): String = dayLabelFormatter.format(date).uppercase(Locale.getDefault())
+
+    /** "Fri 21 Aug" style label, used for notification copy. */
+    fun shortDayLabel(date: LocalDate): String = shortDayLabelFormatter.format(date)
 
     /** "9:02 am" style clock format. */
     fun clockTime(instant: Instant, zone: ZoneId = ZoneId.systemDefault()): String =

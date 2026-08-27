@@ -7,6 +7,7 @@ import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.leave.LeaveRepository
+import com.hasim.orbittime.data.notification.NotificationRepository
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceStats
@@ -69,6 +70,7 @@ class AttendanceViewModel(
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
     private val leaveRepository = LeaveRepository()
+    private val notificationRepository = NotificationRepository()
     private val todayDate = AttendanceTimeFormat.today()
     private val todayKey = AttendanceTimeFormat.dateKey(todayDate)
 
@@ -226,9 +228,23 @@ class AttendanceViewModel(
         _uiState.update { it.copy(isSubmitting = true, errorMessage = null) }
         viewModelScope.launch {
             attendanceRepository.checkIn(uid, todayKey)
-                .onSuccess { _uiState.update { it.copy(isSubmitting = false, successMessage = PunchSuccessKind.CHECK_IN) } }
+                .onSuccess {
+                    _uiState.update { it.copy(isSubmitting = false, successMessage = PunchSuccessKind.CHECK_IN) }
+                    maybeLogLateArrival(uid)
+                }
                 .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, errorMessage = error.message) } }
         }
+    }
+
+    /** Logs a real "Late arrival" notification the moment a check-in lands after the user's own
+     * shift start — never before the Firestore check-in write above has already succeeded. */
+    private suspend fun maybeLogLateArrival(uid: String) {
+        val now = LocalTime.now()
+        val lateMinutes = Duration.between(lateAfter, now).toMinutes()
+        if (lateMinutes <= 0) return
+        val body = "${AttendanceTimeFormat.shortDayLabel(todayDate)} — clocked in at ${AttendanceTimeFormat.clockTime(Instant.now())}, " +
+            "$lateMinutes minute${if (lateMinutes == 1L) "" else "s"} after shift start."
+        notificationRepository.addLateArrival(uid, title = "Late arrival logged", body = body)
     }
 
     fun checkOut() {

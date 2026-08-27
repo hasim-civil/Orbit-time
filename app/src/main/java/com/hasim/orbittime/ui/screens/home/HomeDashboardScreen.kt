@@ -109,6 +109,9 @@ fun HomeDashboardScreen(
     userInitials: String,
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     viewModel: AttendanceViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -120,6 +123,9 @@ fun HomeDashboardScreen(
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         onRangeModeSelected = viewModel::setRangeMode,
+        photoBase64 = photoBase64,
+        hasNotification = hasNotification,
+        onBellClick = onBellClick,
     )
 }
 
@@ -131,6 +137,9 @@ fun HomeDashboardContent(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     onRangeModeSelected: (AttendanceRangeMode) -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -142,7 +151,9 @@ fun HomeDashboardContent(
         ) {
             OrbitTopAppBar(
                 userInitials = userInitials,
-                hasNotification = true,
+                photoBase64 = photoBase64,
+                hasNotification = hasNotification,
+                onBellClick = onBellClick,
                 onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
             )
 

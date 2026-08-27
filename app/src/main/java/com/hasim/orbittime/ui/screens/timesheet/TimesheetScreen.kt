@@ -83,6 +83,9 @@ fun TimesheetScreen(
     userInitials: String,
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
     viewModel: TimesheetViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -94,6 +97,9 @@ fun TimesheetScreen(
         onTabSelected = onTabSelected,
         onPreviousMonth = viewModel::showPreviousMonth,
         onNextMonth = viewModel::showNextMonth,
+        photoBase64 = photoBase64,
+        hasNotification = hasNotification,
+        onBellClick = onBellClick,
     )
 }
 
@@ -105,6 +111,9 @@ fun TimesheetContent(
     onTabSelected: (OrbitTab) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    photoBase64: String = "",
+    hasNotification: Boolean = false,
+    onBellClick: () -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -116,7 +125,9 @@ fun TimesheetContent(
         ) {
             OrbitTopAppBar(
                 userInitials = userInitials,
-                hasNotification = true,
+                photoBase64 = photoBase64,
+                hasNotification = hasNotification,
+                onBellClick = onBellClick,
                 onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
             )
 

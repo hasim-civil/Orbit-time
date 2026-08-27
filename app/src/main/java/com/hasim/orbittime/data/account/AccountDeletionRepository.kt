@@ -15,8 +15,8 @@ class AccountDeletionRequiresReauthException :
     Exception("Please confirm your password to finish deleting your account.")
 
 /**
- * Permanently erases everything this app ever wrote for one user: their attendance, holiday and
- * leave subcollections, their `users/{uid}` profile document (which already holds their photo
+ * Permanently erases everything this app ever wrote for one user: their attendance, holiday,
+ * leave and notification subcollections, their `users/{uid}` profile document (which already holds their photo
  * inline as base64 — this app has no Firebase Storage usage to separately clean up), and finally
  * their Firebase Authentication account itself.
  *
@@ -34,6 +34,7 @@ class AccountDeletionRepository(
         deleteAllDocuments(userDoc.collection("attendance"))
         deleteAllDocuments(userDoc.collection("holidays"))
         deleteAllDocuments(userDoc.collection("leaves"))
+        deleteAllDocuments(userDoc.collection("notifications"))
         userDoc.delete().await()
 
         val user = auth.currentUser ?: error("You're not signed in.")

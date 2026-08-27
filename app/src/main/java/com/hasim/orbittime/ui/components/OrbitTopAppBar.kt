@@ -7,6 +7,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,14 +20,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -36,12 +33,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.ImageCodec
 
 /** The dark tile's own two-stop gradient — measured from the reference, close to but not exactly [OrbitColors.void300]/[OrbitColors.void700]. */
 private val LogoTileTop = Color(0xFF241542)
@@ -54,8 +53,10 @@ private val WordmarkStyle = OrbitTypography.label.copy(fontSize = 12.sp, letterS
 fun OrbitTopAppBar(
     userInitials: String,
     hasNotification: Boolean = false,
+    photoBase64: String = "",
     modifier: Modifier = Modifier,
     onAvatarClick: (() -> Unit)? = null,
+    onBellClick: (() -> Unit)? = null,
 ) {
     // The reference's "logoGlowSm" keyframe on this tile runs at 9s (vs. 6s on the nav
     // button) — same two-state box-shadow breathe, reproduced as a lerp on a triangle wave.
@@ -105,8 +106,6 @@ fun OrbitTopAppBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        var menuExpanded by remember { mutableStateOf(false) }
-        var seen by remember { mutableStateOf(false) }
         Box {
             Box(
                 modifier = Modifier
@@ -114,10 +113,7 @@ fun OrbitTopAppBar(
                     .shadow(elevation = 2.dp, shape = CircleShape)
                     .clip(CircleShape)
                     .background(OrbitColors.cream50.copy(alpha = 0.96f), CircleShape)
-                    .clickable {
-                        seen = true
-                        menuExpanded = true
-                    },
+                    .clickable(enabled = onBellClick != null) { onBellClick?.invoke() },
                 contentAlignment = Alignment.Center,
             ) {
                 Canvas(modifier = Modifier.size(20.dp)) {
@@ -155,7 +151,7 @@ fun OrbitTopAppBar(
                     drawPath(bell, color = OrbitColors.ink900)
                 }
             }
-            if (hasNotification && !seen) {
+            if (hasNotification) {
                 // Sits outside the button's own clipped Box — placed inside it, the CircleShape
                 // clip cut off most of the dot since aligning to the bounding square's corner
                 // lands mostly outside the inscribed circle.
@@ -168,26 +164,38 @@ fun OrbitTopAppBar(
                         .background(OrbitColors.danger, CircleShape),
                 )
             }
-            DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                DropdownMenuItem(
-                    text = { Text(if (hasNotification) "You're all caught up" else "No new notifications") },
-                    onClick = { menuExpanded = false },
-                )
-            }
         }
         Spacer(modifier = Modifier.width(OrbitSpacing.sm))
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(
-                    brush = Brush.linearGradient(colors = listOf(OrbitColors.purple500, OrbitColors.blue500)),
-                    shape = CircleShape,
-                )
                 .clickable(enabled = onAvatarClick != null) { onAvatarClick?.invoke() },
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = userInitials, style = OrbitTypography.bodySmall, color = OrbitColors.cream50)
+            val decodedPhoto = remember(photoBase64) {
+                photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
+            }
+            if (decodedPhoto != null) {
+                Image(
+                    bitmap = decodedPhoto,
+                    contentDescription = "Profile photo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(36.dp).clip(CircleShape),
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            brush = Brush.linearGradient(colors = listOf(OrbitColors.purple500, OrbitColors.blue500)),
+                            shape = CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = userInitials, style = OrbitTypography.bodySmall, color = OrbitColors.cream50)
+                }
+            }
         }
     }
 }
