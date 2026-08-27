@@ -58,7 +58,7 @@ class AttendanceRepository(
 
     suspend fun checkIn(uid: String, date: String): Result<Unit> = runCatching {
         val docRef = dayDoc(uid, date)
-        firestore.runTransaction<Unit> { transaction ->
+        firestore.runTransaction { transaction ->
             val existing = transaction.get(docRef).toObject<AttendanceRecord>()
             when {
                 existing?.isCheckedIn == true ->
@@ -68,6 +68,7 @@ class AttendanceRepository(
                 else ->
                     transaction.set(docRef, AttendanceRecord(date = date, checkInAt = Timestamp.now()))
             }
+            Unit
         }.await()
     }.recoverCatching { throwable ->
         throw if (throwable is AttendanceException) throwable else AttendanceException(mapFirestoreErrorMessage(throwable))
@@ -75,7 +76,7 @@ class AttendanceRepository(
 
     suspend fun checkOut(uid: String, date: String): Result<Unit> = runCatching {
         val docRef = dayDoc(uid, date)
-        firestore.runTransaction<Unit> { transaction ->
+        firestore.runTransaction { transaction ->
             val existing = transaction.get(docRef).toObject<AttendanceRecord>()
             when {
                 existing?.checkInAt == null ->
@@ -85,6 +86,7 @@ class AttendanceRepository(
                 else ->
                     transaction.update(docRef, "checkOutAt", Timestamp.now())
             }
+            Unit
         }.await()
     }.recoverCatching { throwable ->
         throw if (throwable is AttendanceException) throwable else AttendanceException(mapFirestoreErrorMessage(throwable))
