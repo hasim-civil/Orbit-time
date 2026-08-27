@@ -104,6 +104,7 @@ class AttendanceRepository(
         checkInAt?.let { data["checkInAt"] = it }
         checkOutAt?.let { data["checkOutAt"] = it }
         dayDoc(uid, date).set(data, SetOptions.merge()).await()
+        Unit
     }.recoverCatching { throwable ->
         throw AttendanceException(mapFirestoreErrorMessage(throwable))
     }
