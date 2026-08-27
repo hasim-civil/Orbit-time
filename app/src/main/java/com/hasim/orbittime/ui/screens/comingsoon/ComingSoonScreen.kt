@@ -17,8 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import com.hasim.orbittime.ui.components.OrbitBottomNav
+import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitOutlineButton
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
@@ -51,29 +50,27 @@ fun ComingSoonScreen(
         ) {
             OrbitTopAppBar(userInitials = userInitials)
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = OrbitSpacing.screenHorizontal),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(title, style = OrbitTypography.headline, color = OrbitColors.ink900, textAlign = TextAlign.Center)
-                Spacer(modifier = Modifier.height(OrbitSpacing.sm))
-                Text(
-                    "This part of Orbit Time is coming soon.",
-                    style = OrbitTypography.bodyMedium,
-                    color = OrbitColors.slate600,
-                    textAlign = TextAlign.Center,
-                )
-                if (signOutButton != null) {
-                    Spacer(modifier = Modifier.height(OrbitSpacing.xxl))
-                    signOutButton()
+            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = OrbitSpacing.screenHorizontal),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(title, style = OrbitTypography.headline, color = OrbitColors.ink900, textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                    Text(
+                        "This part of Orbit Time is coming soon.",
+                        style = OrbitTypography.bodyMedium,
+                        color = OrbitColors.slate600,
+                        textAlign = TextAlign.Center,
+                    )
+                    if (signOutButton != null) {
+                        Spacer(modifier = Modifier.height(OrbitSpacing.xxl))
+                        signOutButton()
+                    }
                 }
-            }
-
-            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
-                OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }
     }

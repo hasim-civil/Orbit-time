@@ -39,7 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.ui.components.InlineBanner
-import com.hasim.orbittime.ui.components.OrbitBottomNav
+import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
+import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
@@ -111,44 +112,42 @@ fun TimesheetContent(
         ) {
             OrbitTopAppBar(userInitials = userInitials, hasNotification = true)
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = TimesheetHorizontalMargin),
-            ) {
-                if (uiState.errorMessage != null) {
-                    InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                } else if (!uiState.isOnline) {
-                    InlineBanner(
-                        text = "You're offline. Showing the last synced attendance data.",
-                        color = OrbitColors.warningDark,
-                        background = OrbitColors.warningBg,
-                    )
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                }
-
-                if (uiState.isLoading) {
-                    Box(modifier = Modifier.fillMaxWidth().height(360.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = OrbitColors.violet600)
+            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = TimesheetHorizontalMargin),
+                ) {
+                    if (uiState.errorMessage != null) {
+                        InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                    } else if (!uiState.isOnline) {
+                        InlineBanner(
+                            text = "You're offline. Showing the last synced attendance data.",
+                            color = OrbitColors.warningDark,
+                            background = OrbitColors.warningBg,
+                        )
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
                     }
-                } else {
-                    MonthCalendarCard(
-                        monthLabel = uiState.monthLabel,
-                        days = uiState.days,
-                        onPreviousMonth = onPreviousMonth,
-                        onNextMonth = onNextMonth,
-                    )
-                    Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-                    DailyHistoryCard(history = uiState.history)
+
+                    if (uiState.isLoading) {
+                        Box(modifier = Modifier.fillMaxWidth().height(360.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = OrbitColors.violet600)
+                        }
+                    } else {
+                        MonthCalendarCard(
+                            monthLabel = uiState.monthLabel,
+                            days = uiState.days,
+                            onPreviousMonth = onPreviousMonth,
+                            onNextMonth = onNextMonth,
+                        )
+                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        DailyHistoryCard(history = uiState.history)
+                    }
+
+                    Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                 }
-
-                Spacer(modifier = Modifier.height(OrbitSpacing.xl))
-            }
-
-            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
-                OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }
     }

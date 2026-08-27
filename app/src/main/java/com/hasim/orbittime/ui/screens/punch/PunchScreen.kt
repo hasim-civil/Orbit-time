@@ -32,7 +32,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.ui.components.InlineBanner
-import com.hasim.orbittime.ui.components.OrbitBottomNav
+import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
+import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitGradientButton
 import com.hasim.orbittime.ui.components.OrbitOutlineButton
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -86,57 +87,55 @@ fun PunchContent(
         ) {
             OrbitTopAppBar(userInitials = userInitials, hasNotification = true)
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = OrbitSpacing.screenHorizontal),
-            ) {
-                if (!uiState.isOnline) {
-                    InlineBanner(text = "You're offline. Check-in/out needs a connection.", color = OrbitColors.warningDark, background = OrbitColors.warningBg)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                }
-                if (uiState.errorMessage != null) {
-                    InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                }
-
-                if (uiState.isLoading) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(320.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = OrbitColors.violet600)
+            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = OrbitSpacing.screenHorizontal),
+                ) {
+                    if (!uiState.isOnline) {
+                        InlineBanner(text = "You're offline. Check-in/out needs a connection.", color = OrbitColors.warningDark, background = OrbitColors.warningBg)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
                     }
-                } else {
-                    PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-                    CheckInOutMiniCards(uiState)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-                    PunchTimeActionRow(
-                        icon = "✎",
-                        iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
-                        iconColor = OrbitColors.violet600,
-                        label = "Edit time",
-                        labelColor = OrbitColors.ink900,
-                        trailingText = "9:02 am – 5:48 pm",
-                    )
-                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
-                    PunchTimeActionRow(
-                        icon = "+",
-                        iconBackground = OrbitColors.mist,
-                        iconColor = OrbitColors.slate500,
-                        label = "Add past attendance",
-                        labelColor = OrbitColors.slate500,
-                        trailingText = null,
-                    )
+                    if (uiState.errorMessage != null) {
+                        InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                    }
+
+                    if (uiState.isLoading) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().height(320.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(color = OrbitColors.violet600)
+                        }
+                    } else {
+                        PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        CheckInOutMiniCards(uiState)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        PunchTimeActionRow(
+                            icon = "✎",
+                            iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
+                            iconColor = OrbitColors.violet600,
+                            label = "Edit time",
+                            labelColor = OrbitColors.ink900,
+                            trailingText = "9:02 am – 5:48 pm",
+                        )
+                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                        PunchTimeActionRow(
+                            icon = "+",
+                            iconBackground = OrbitColors.mist,
+                            iconColor = OrbitColors.slate500,
+                            label = "Add past attendance",
+                            labelColor = OrbitColors.slate500,
+                            trailingText = null,
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                 }
-
-                Spacer(modifier = Modifier.height(OrbitSpacing.xl))
-            }
-
-            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
-                OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }
     }

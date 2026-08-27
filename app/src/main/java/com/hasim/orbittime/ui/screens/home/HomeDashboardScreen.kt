@@ -42,7 +42,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.ui.components.InlineBanner
-import com.hasim.orbittime.ui.components.OrbitBottomNav
+import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
+import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
 import com.hasim.orbittime.ui.screens.punch.AttendanceViewModel
@@ -96,49 +97,47 @@ fun HomeDashboardContent(
         ) {
             OrbitTopAppBar(userInitials = userInitials, hasNotification = true)
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = OrbitSpacing.screenHorizontal),
-            ) {
-                if (uiState.isLoading) {
-                    LoadingBox(height = 200.dp)
-                } else {
-                    GreetingCard(userDisplayName, uiState)
-                }
+            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = OrbitSpacing.screenHorizontal),
+                ) {
+                    if (uiState.isLoading) {
+                        LoadingBox(height = 200.dp)
+                    } else {
+                        GreetingCard(userDisplayName, uiState)
+                    }
 
-                Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-
-                if (uiState.summaryErrorMessage != null) {
-                    InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                } else if (!uiState.isOnline) {
-                    InlineBanner(
-                        text = "You're offline. Showing the last synced attendance data.",
-                        color = OrbitColors.warningDark,
-                        background = OrbitColors.warningBg,
-                    )
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                }
-
-                if (uiState.isSummaryLoading) {
-                    LoadingBox(height = 260.dp)
-                } else {
-                    MonthlyAttendanceCard(
-                        summary = uiState.summary,
-                        rangeMode = uiState.rangeMode,
-                        onRangeModeSelected = onRangeModeSelected,
-                    )
                     Spacer(modifier = Modifier.height(OrbitSpacing.lg))
-                    AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
+
+                    if (uiState.summaryErrorMessage != null) {
+                        InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                    } else if (!uiState.isOnline) {
+                        InlineBanner(
+                            text = "You're offline. Showing the last synced attendance data.",
+                            color = OrbitColors.warningDark,
+                            background = OrbitColors.warningBg,
+                        )
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                    }
+
+                    if (uiState.isSummaryLoading) {
+                        LoadingBox(height = 260.dp)
+                    } else {
+                        MonthlyAttendanceCard(
+                            summary = uiState.summary,
+                            rangeMode = uiState.rangeMode,
+                            onRangeModeSelected = onRangeModeSelected,
+                        )
+                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
+                    }
+
+                    Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                 }
-
-                Spacer(modifier = Modifier.height(OrbitSpacing.xl))
-            }
-
-            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
-                OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }
     }

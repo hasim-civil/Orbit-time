@@ -32,8 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -72,6 +74,61 @@ private val ButtonGlowDiameter = 84.dp
 private val ButtonAbovePill = 24.dp
 private val NavComponentHeight = ButtonAbovePill + PillHeight
 
+/** The reference's fixed side/bottom margins for the floating pill. */
+private val NavHorizontalMargin = 14.dp
+private val NavBottomMargin = 25.dp
+
+/** The reference's bottom fade scrim height (`104px`), easing scrolled content into the nav. */
+private val NavScrimHeight = 102.dp
+
+/**
+ * How much bottom breathing room scrollable screen content should reserve for itself inside
+ * [OrbitFloatingNavHost] — matching the reference's own content `padding-bottom: 74px`. This is
+ * deliberately less than the nav's full footprint: content is meant to keep scrolling in behind
+ * the translucent pill and fade scrim, not stop dead clear of it.
+ */
+val OrbitFloatingNavContentClearance = 72.dp
+
+/**
+ * Hosts scrollable screen content with the custom bottom nav floating on top of it, exactly like
+ * the reference: content scrolls in behind the translucent, shadowed pill (softened by a fade
+ * scrim) instead of stopping in a reserved empty band beneath it. [content] is responsible for
+ * its own trailing [OrbitFloatingNavContentClearance] spacer so its last item isn't fully hidden.
+ */
+@Composable
+fun OrbitFloatingNavHost(
+    selectedTab: OrbitTab,
+    onTabSelected: (OrbitTab) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    Box(modifier = modifier.fillMaxSize()) {
+        content()
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(NavScrimHeight)
+                .background(
+                    brush = Brush.verticalGradient(
+                        0f to OrbitColors.cream100.copy(alpha = 0f),
+                        0.46f to OrbitColors.cream100.copy(alpha = 0.82f),
+                        1f to OrbitColors.cream100.copy(alpha = 0.96f),
+                    ),
+                ),
+        )
+
+        OrbitBottomNav(
+            selectedTab = selectedTab,
+            onTabSelected = onTabSelected,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(start = NavHorizontalMargin, end = NavHorizontalMargin, bottom = NavBottomMargin),
+        )
+    }
+}
+
 @Composable
 fun OrbitBottomNav(
     selectedTab: OrbitTab,
@@ -84,7 +141,8 @@ fun OrbitBottomNav(
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .height(PillHeight)
-                .background(OrbitColors.cream50.copy(alpha = 0.8f), PillShape)
+                .shadow(elevation = 10.dp, shape = PillShape, ambientColor = Color.Black.copy(alpha = 0.16f), spotColor = Color.Black.copy(alpha = 0.16f))
+                .background(OrbitColors.cream50.copy(alpha = 0.92f), PillShape)
                 .padding(horizontal = OrbitSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
