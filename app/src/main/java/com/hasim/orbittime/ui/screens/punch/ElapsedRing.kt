@@ -4,6 +4,8 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.StartOffsetType
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -55,10 +57,11 @@ private val ProgressEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private val PressEasing = CubicBezierEasing(0.3f, 1.4f, 0.5f, 1f)
 
 /**
- * The layered elapsed-time ring + tap target on the Punch hero card: a pulsing outer
- * halo ("haloPulse"), the real shift-progress ring (smoothly animated, not decorative),
- * a soft pulsing edge glow ("edgeGlow"), a counter-rotating conic glow behind the button
- * ("revSpin"), and a one-shot expanding ripple fired on tap ("punchGlow").
+ * The layered elapsed-time ring + tap target on the Punch hero card: three staggered
+ * pulsing halo rings reading as one outward wave ("haloPulse"), the real shift-progress
+ * ring (smoothly animated, not decorative), a soft pulsing edge glow ("edgeGlow"), a
+ * counter-rotating conic glow behind the button ("revSpin"), and a one-shot expanding
+ * ripple fired on tap ("punchGlow").
  */
 @Composable
 fun ElapsedRing(
@@ -71,19 +74,26 @@ fun ElapsedRing(
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "elapsedRing")
 
-    val halo by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = keyframes {
-                durationMillis = 3000
-                0f at 0
-                1f at 2100
-                1f at 3000
-            },
-        ),
-        label = "halo",
-    )
+    // Three rings pulse on the same 3000ms cycle but staggered a third of a cycle apart, so
+    // at any moment up to three concentric rings are expanding and fading at once — reads as
+    // a continuous outward wave rather than one ring restarting abruptly.
+    val haloRingCount = 3
+    val halos = List(haloRingCount) { index ->
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = keyframes {
+                    durationMillis = 3000
+                    0f at 0
+                    1f at 2100
+                    1f at 3000
+                },
+                initialStartOffset = StartOffset((3000 / haloRingCount) * index, StartOffsetType.Delay),
+            ),
+            label = "halo$index",
+        )
+    }
     val revRotation by infiniteTransition.animateFloat(
         initialValue = 360f,
         targetValue = 0f,
@@ -123,18 +133,20 @@ fun ElapsedRing(
     }
 
     Box(modifier = modifier.size(HaloDiameter), contentAlignment = Alignment.Center) {
-        // 1. haloPulse — outer ring expanding and fading, restarting every 3s.
-        Box(
-            modifier = Modifier
-                .size(HaloDiameter)
-                .graphicsLayer {
-                    val scale = 1f + halo * 0.28f
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = (1f - halo).coerceIn(0f, 1f) * 0.5f
-                }
-                .border(1.dp, OrbitColors.purple500.copy(alpha = 0.4f), CircleShape),
-        )
+        // 1. haloPulse — three staggered rings expanding and fading, reading as one wave.
+        halos.forEach { halo ->
+            Box(
+                modifier = Modifier
+                    .size(HaloDiameter)
+                    .graphicsLayer {
+                        val scale = 1f + halo.value * 0.28f
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = (1f - halo.value).coerceIn(0f, 1f) * 0.5f
+                    }
+                    .border(1.dp, OrbitColors.purple500.copy(alpha = 0.4f), CircleShape),
+            )
+        }
 
         // 2. The real shift-progress ring — data-driven, smoothly transitions on change.
         Canvas(modifier = Modifier.size(ProgressRingDiameter)) {
