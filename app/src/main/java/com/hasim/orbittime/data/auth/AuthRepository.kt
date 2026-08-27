@@ -1,6 +1,7 @@
 package com.hasim.orbittime.data.auth
 
 import com.google.firebase.FirebaseNetworkException
+import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -57,6 +58,21 @@ class AuthRepository(
     suspend fun updatePassword(newPassword: String): Result<Unit> = runCatching {
         val user = auth.currentUser ?: error("You're not signed in.")
         user.updatePassword(newPassword).await()
+        Unit
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    /** True when the current user can re-verify their identity with a password (i.e. they have
+     * an email/password credential on file) — a Google-only account has none. */
+    val currentUserHasPasswordCredential: Boolean
+        get() = auth.currentUser?.providerData.orEmpty().any { it.providerId == EmailAuthProvider.PROVIDER_ID }
+
+    /** Refreshes the "recent login" Firebase requires before a sensitive action (e.g. deleting
+     * the account) — only works for a user with a password credential. */
+    suspend fun reauthenticateWithPassword(password: String): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        val email = user.email ?: error("Your account has no email on file.")
+        val credential = EmailAuthProvider.getCredential(email, password)
+        user.reauthenticate(credential).await()
         Unit
     }.recoverCatching { throw AuthException(mapAuthError(it)) }
 

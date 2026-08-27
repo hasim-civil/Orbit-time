@@ -59,6 +59,7 @@ private fun LocalTime.toDisplayLabel(): String = EditProfileShiftFormatter.forma
 fun EditProfileScreen(
     onBackClick: () -> Unit,
     onSaved: () -> Unit,
+    onAccountDeleted: () -> Unit,
     viewModel: EditProfileViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -72,6 +73,8 @@ fun EditProfileScreen(
     var shiftStart by remember(uiState.isLoading) { mutableStateOf(uiState.shiftStart) }
     var shiftEnd by remember(uiState.isLoading) { mutableStateOf(uiState.shiftEnd) }
     var showShiftDialog by remember { mutableStateOf(false) }
+    var showDeleteWarning by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) viewModel.onPhotoPicked(uri)
@@ -175,6 +178,57 @@ fun EditProfileScreen(
                 onClick = { viewModel.save(name, email, role, shiftStart, shiftEnd, password, onSaved) },
             )
         }
+
+        Spacer(modifier = Modifier.height(OrbitSpacing.xxl))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(OrbitColors.dangerBg, OrbitShapes.medium)
+                .clickable { showDeleteWarning = true }
+                .padding(vertical = OrbitSpacing.md),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(text = "Delete account", style = OrbitTypography.titleMedium, color = OrbitColors.danger)
+        }
+    }
+
+    if (showDeleteWarning) {
+        AlertDialog(
+            onDismissRequest = { showDeleteWarning = false },
+            title = { Text(text = "Delete account?", style = OrbitTypography.titleMedium) },
+            text = {
+                Text(
+                    text = "Are you sure? This will permanently delete your account and all your data.",
+                    style = OrbitTypography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteWarning = false
+                    showDeleteConfirm = true
+                }) { Text("Continue", color = OrbitColors.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteWarning = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    val awaitingReauth = uiState.needsReauthToDelete
+    if (showDeleteConfirm || awaitingReauth) {
+        DeleteAccountDialog(
+            isDeleting = uiState.isDeletingAccount,
+            errorMessage = uiState.deleteError,
+            awaitingReauth = awaitingReauth,
+            canReauthWithPassword = uiState.canReauthWithPassword,
+            onConfirmDelete = { viewModel.deleteAccount(password = null, onDeleted = onAccountDeleted) },
+            onConfirmReauth = { reauthPassword -> viewModel.deleteAccount(password = reauthPassword, onDeleted = onAccountDeleted) },
+            onDismiss = {
+                showDeleteConfirm = false
+                viewModel.dismissReauth()
+            },
+        )
     }
 
     if (showShiftDialog) {
@@ -224,6 +278,88 @@ private fun EditShiftDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
+        },
+    )
+}
+
+/**
+ * The final, irreversible confirmation — reused for the re-authentication retry too, since
+ * Firebase may require a fresher sign-in before it will actually delete the Auth account.
+ * While [isDeleting] the dialog can't be dismissed, so a slow delete can't be double-tapped
+ * or backed out of mid-flight.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DeleteAccountDialog(
+    isDeleting: Boolean,
+    errorMessage: String?,
+    awaitingReauth: Boolean,
+    canReauthWithPassword: Boolean,
+    onConfirmDelete: () -> Unit,
+    onConfirmReauth: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var reauthPassword by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        title = {
+            Text(
+                text = if (awaitingReauth) "Confirm your password" else "This can't be undone",
+                style = OrbitTypography.titleMedium,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+                when {
+                    awaitingReauth && canReauthWithPassword -> {
+                        Text(
+                            text = "For your security, please re-enter your password to finish deleting your account.",
+                            style = OrbitTypography.bodyMedium,
+                        )
+                        OrbitTextField(
+                            label = "PASSWORD",
+                            value = reauthPassword,
+                            onValueChange = { reauthPassword = it },
+                            isPassword = true,
+                        )
+                    }
+                    awaitingReauth -> {
+                        Text(
+                            text = "For your security, please sign out and sign in again, then retry deleting your account.",
+                            style = OrbitTypography.bodyMedium,
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = "Confirm again to permanently delete your account and all your data — attendance, holidays, leave records and your profile. This cannot be reversed.",
+                            style = OrbitTypography.bodyMedium,
+                        )
+                    }
+                }
+                if (errorMessage != null) {
+                    InlineBanner(text = errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                }
+            }
+        },
+        confirmButton = {
+            if (isDeleting) {
+                Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = OrbitColors.danger, modifier = Modifier.size(20.dp))
+                }
+            } else if (awaitingReauth) {
+                if (canReauthWithPassword) {
+                    TextButton(
+                        onClick = { onConfirmReauth(reauthPassword) },
+                        enabled = reauthPassword.isNotBlank(),
+                    ) { Text("Confirm & delete", color = OrbitColors.danger) }
+                }
+            } else {
+                TextButton(onClick = onConfirmDelete) { Text("Delete permanently", color = OrbitColors.danger) }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isDeleting) { Text("Cancel") }
         },
     )
 }

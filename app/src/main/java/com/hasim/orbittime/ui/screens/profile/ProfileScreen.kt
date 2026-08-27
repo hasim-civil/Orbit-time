@@ -99,6 +99,7 @@ fun ProfileScreen(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     onSignOutClick: () -> Unit,
+    onAccountDeleted: () -> Unit,
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -124,6 +125,7 @@ fun ProfileScreen(
                 viewModel.refresh()
                 subScreen = ProfileSubScreen.MAIN
             },
+            onAccountDeleted = onAccountDeleted,
         )
         ProfileSubScreen.HOLIDAY_LIST -> HolidayListScreen(
             onBackClick = { subScreen = ProfileSubScreen.MAIN },

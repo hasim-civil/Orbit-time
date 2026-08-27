@@ -4,6 +4,8 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hasim.orbittime.data.account.AccountDeletionRepository
+import com.hasim.orbittime.data.account.AccountDeletionRequiresReauthException
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.user.UserProfile
 import com.hasim.orbittime.data.user.UserProfileRepository
@@ -31,6 +33,10 @@ data class EditProfileUiState(
     val shiftEnd: LocalTime = LocalTime.of(17, 30),
     val isSaving: Boolean = false,
     val errorMessage: String? = null,
+    val isDeletingAccount: Boolean = false,
+    val deleteError: String? = null,
+    val needsReauthToDelete: Boolean = false,
+    val canReauthWithPassword: Boolean = true,
 )
 
 /** Backs the Edit Profile screen: loads the real signed-in user's data, then saves any changes
@@ -41,6 +47,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
 
     private val authRepository = AuthRepository()
     private val profileRepository = UserProfileRepository()
+    private val accountDeletionRepository = AccountDeletionRepository()
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -75,7 +82,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
      * whole signed-in session, not just one visit to this screen, so it outlives a single "in
      * and back out" round trip. */
     fun dismissError() {
-        _uiState.update { it.copy(errorMessage = null) }
+        _uiState.update { it.copy(errorMessage = null, deleteError = null) }
     }
 
     fun onPhotoPicked(uri: Uri) {
@@ -165,6 +172,60 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 pendingPhotoUri = null
                 onSaved()
             }
+        }
+    }
+
+    /** Cancels a pending re-authentication prompt — called when the user backs out of the
+     * delete-account dialog instead of confirming their password. */
+    fun dismissReauth() {
+        _uiState.update { it.copy(needsReauthToDelete = false, deleteError = null) }
+    }
+
+    /**
+     * Permanently deletes the signed-in user's account and everything this app ever stored for
+     * them. [password] is only needed on a retry after [EditProfileUiState.needsReauthToDelete]
+     * comes back true — Firebase requires a fresh sign-in before it will delete an Auth account,
+     * and a stale session (the common case, since this ViewModel — and the session it belongs
+     * to — can live for hours) won't count as fresh.
+     */
+    fun deleteAccount(password: String?, onDeleted: () -> Unit) {
+        if (_uiState.value.isDeletingAccount) return
+        val uid = authRepository.currentUser?.uid
+        if (uid == null) {
+            _uiState.update { it.copy(deleteError = "You're not signed in.") }
+            return
+        }
+        _uiState.update { it.copy(isDeletingAccount = true, deleteError = null, needsReauthToDelete = false) }
+        viewModelScope.launch {
+            var reauthError: String? = null
+            if (password != null) {
+                authRepository.reauthenticateWithPassword(password)
+                    .onFailure { error -> reauthError = error.message }
+            }
+
+            if (reauthError != null) {
+                _uiState.update { it.copy(isDeletingAccount = false, deleteError = reauthError) }
+                return@launch
+            }
+
+            accountDeletionRepository.deleteAccount(uid)
+                .onSuccess {
+                    _uiState.update { it.copy(isDeletingAccount = false) }
+                    onDeleted()
+                }
+                .onFailure { error ->
+                    if (error is AccountDeletionRequiresReauthException) {
+                        _uiState.update {
+                            it.copy(
+                                isDeletingAccount = false,
+                                needsReauthToDelete = true,
+                                canReauthWithPassword = authRepository.currentUserHasPasswordCredential,
+                            )
+                        }
+                    } else {
+                        _uiState.update { it.copy(isDeletingAccount = false, deleteError = error.message) }
+                    }
+                }
         }
     }
 }

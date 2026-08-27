@@ -68,6 +68,9 @@ fun MainScreen(
                 authRepository.signOut()
                 onLoggedOut()
             },
+            // Deletion itself (Firestore + Auth) already happened by the time this fires —
+            // this just clears the session the same way signing out does.
+            onAccountDeleted = onLoggedOut,
         )
     }
 }
