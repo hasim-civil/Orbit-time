@@ -196,6 +196,11 @@ private fun PunchHeroCard(
             elapsedLabel = AttendanceTimeFormat.elapsedLabel(uiState.elapsed),
             statusLabel = statusLabel,
             statusColor = statusColor,
+            onClick = when {
+                uiState.isSubmitting || uiState.isCompleted -> null
+                uiState.isCheckedIn -> onCheckOutClick
+                else -> onCheckInClick
+            },
         )
 
         Spacer(modifier = Modifier.height(OrbitSpacing.xl))
