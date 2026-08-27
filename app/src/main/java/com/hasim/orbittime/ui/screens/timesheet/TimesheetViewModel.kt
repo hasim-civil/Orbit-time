@@ -3,8 +3,10 @@ package com.hasim.orbittime.ui.screens.timesheet
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hasim.orbittime.data.attendance.AttendanceRecord
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.leave.LeaveRepository
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
@@ -46,11 +48,15 @@ class TimesheetViewModel(
     private val authRepository = AuthRepository()
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
+    private val leaveRepository = LeaveRepository()
 
     private val _uiState = MutableStateFlow(TimesheetUiState())
     val uiState: StateFlow<TimesheetUiState> = _uiState.asStateFlow()
 
     private var rangeJob: Job? = null
+    private var lastMonthStart: LocalDate? = null
+    private var lastRecordsByDate: Map<LocalDate, AttendanceRecord> = emptyMap()
+    private var leaveDates: Set<LocalDate> = emptySet()
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
@@ -62,7 +68,19 @@ class TimesheetViewModel(
         } else {
             observeConnectivity()
             observeMonth(uid, _uiState.value.displayedMonth)
+            observeLeaves(uid)
             loadShiftStart(uid)
+        }
+    }
+
+    private fun observeLeaves(uid: String) {
+        viewModelScope.launch {
+            leaveRepository.observeLeaves(uid)
+                .catch { /* Leave dates are an enhancement to the calendar; a failure here shouldn't block attendance. */ }
+                .collect { leaves ->
+                    leaveDates = leaves.flatMap { it.dateRange() }.toSet()
+                    rebuildDays()
+                }
         }
     }
 
@@ -95,33 +113,40 @@ class TimesheetViewModel(
             attendanceRepository.observeRange(uid, AttendanceTimeFormat.dateKey(monthStart), AttendanceTimeFormat.dateKey(monthEnd))
                 .catch { error -> _uiState.update { it.copy(isLoading = false, errorMessage = error.message) } }
                 .collect { records ->
-                    val today = AttendanceTimeFormat.today()
-                    val byDate = records.mapNotNull { record ->
+                    lastMonthStart = monthStart
+                    lastRecordsByDate = records.mapNotNull { record ->
                         runCatching { LocalDate.parse(record.date) }.getOrNull()?.let { it to record }
                     }.toMap()
-
-                    val days = (1..monthStart.lengthOfMonth()).map { dayOfMonth ->
-                        val date = monthStart.withDayOfMonth(dayOfMonth)
-                        val record = byDate[date]
-                        val checkInAt = record?.checkInAt?.toDate()?.toInstant()
-                        val checkOutAt = record?.checkOutAt?.toDate()?.toInstant()
-                        TimesheetDay(
-                            date = date,
-                            checkInAt = checkInAt,
-                            checkOutAt = checkOutAt,
-                            status = AttendanceStats.classifyDay(checkInAt, date, today, lateAfter = lateAfter),
-                        )
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            monthLabel = AttendanceTimeFormat.monthLabel(monthStart),
-                            days = days,
-                            history = days.filter { day -> day.checkInAt != null }.sortedByDescending { day -> day.date },
-                        )
-                    }
+                    rebuildDays()
                 }
+        }
+    }
+
+    private fun rebuildDays() {
+        val monthStart = lastMonthStart ?: return
+        val today = AttendanceTimeFormat.today()
+        val byDate = lastRecordsByDate
+
+        val days = (1..monthStart.lengthOfMonth()).map { dayOfMonth ->
+            val date = monthStart.withDayOfMonth(dayOfMonth)
+            val record = byDate[date]
+            val checkInAt = record?.checkInAt?.toDate()?.toInstant()
+            val checkOutAt = record?.checkOutAt?.toDate()?.toInstant()
+            TimesheetDay(
+                date = date,
+                checkInAt = checkInAt,
+                checkOutAt = checkOutAt,
+                status = AttendanceStats.classifyDay(checkInAt, date, today, lateAfter = lateAfter, isOnLeave = date in leaveDates),
+            )
+        }
+
+        _uiState.update {
+            it.copy(
+                isLoading = false,
+                monthLabel = AttendanceTimeFormat.monthLabel(monthStart),
+                days = days,
+                history = days.filter { day -> day.checkInAt != null }.sortedByDescending { day -> day.date },
+            )
         }
     }
 

@@ -16,11 +16,13 @@ data class ProfileUiState(
     val name: String = "",
     val email: String = "",
     val initials: String = "?",
+    val role: String = "",
+    val photoUrl: String = "",
     val shiftStart: String? = null,
     val shiftEnd: String? = null,
 )
 
-/** Loads the signed-in user's name/email (from Firebase Auth) and shift (from their
+/** Loads the signed-in user's name/email (from Firebase Auth) and role/shift/photo (from their
  * Firestore profile document) for the Profile screen — reuses the same repositories
  * every other screen already uses, no new Firebase logic. */
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
@@ -32,6 +34,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     init {
+        load()
+    }
+
+    /** Re-reads the current user + Firestore profile — called after Edit Profile saves changes,
+     * so the Profile screen reflects the update immediately without needing to reopen the tab. */
+    fun refresh() = load()
+
+    private fun load() {
         val user = authRepository.currentUser
         val fallbackName = user?.displayName?.trim()?.takeIf { it.isNotBlank() }
             ?: user?.email?.substringBefore("@").orEmpty()
@@ -51,6 +61,9 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update {
                         it.copy(
                             name = profile.name.takeIf { name -> name.isNotBlank() } ?: it.name,
+                            email = profile.email.takeIf { email -> email.isNotBlank() } ?: it.email,
+                            role = profile.role,
+                            photoUrl = profile.photoUrl,
                             shiftStart = profile.shiftStart,
                             shiftEnd = profile.shiftEnd,
                         )

@@ -4,6 +4,7 @@ import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
@@ -39,11 +40,32 @@ class AuthRepository(
         auth.signOut()
     }
 
+    /** Keeps FirebaseAuth's own displayName in sync — used by [com.hasim.orbittime.util.UserDisplay]. */
+    suspend fun updateDisplayName(name: String): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        user.updateProfile(userProfileChangeRequest { displayName = name.trim() }).await()
+        Unit
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    suspend fun updateEmail(newEmail: String): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        @Suppress("DEPRECATION")
+        user.updateEmail(newEmail.trim()).await()
+        Unit
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    suspend fun updatePassword(newPassword: String): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        user.updatePassword(newPassword).await()
+        Unit
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
     private fun mapAuthError(throwable: Throwable): String = when (throwable) {
         is FirebaseAuthInvalidUserException -> "No account found with that email."
         is FirebaseAuthInvalidCredentialsException -> "Incorrect email or password."
         is FirebaseAuthUserCollisionException -> "An account with that email already exists."
         is FirebaseAuthWeakPasswordException -> "Password is too weak — use at least ${AuthValidation.MIN_PASSWORD_LENGTH} characters."
+        is FirebaseAuthRecentLoginRequiredException -> "Please sign out and sign in again before changing this."
         is FirebaseNetworkException -> "Network error — check your connection and try again."
         else -> "Something went wrong. Please try again."
     }

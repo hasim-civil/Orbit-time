@@ -1,5 +1,6 @@
 package com.hasim.orbittime.ui.screens.profile
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,11 +29,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -59,9 +65,12 @@ import com.hasim.orbittime.ui.theme.InstrumentSerif
 import com.hasim.orbittime.ui.theme.Manrope
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
+import com.hasim.orbittime.ui.theme.OrbitTypography
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+private enum class ProfileSubScreen { MAIN, EDIT_PROFILE, HOLIDAY_LIST, ADD_LEAVE }
 
 // Exact values measured from the reference `Orbit Time.html` Profile section
 // (the `isProfile` sc-if block) — sizes/weights/colors not already covered by the
@@ -91,12 +100,36 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    ProfileContent(
-        uiState = uiState,
-        selectedTab = selectedTab,
-        onTabSelected = onTabSelected,
-        onSignOutClick = onSignOutClick,
-    )
+    var subScreen by remember { mutableStateOf(ProfileSubScreen.MAIN) }
+
+    BackHandler(enabled = subScreen != ProfileSubScreen.MAIN) {
+        subScreen = ProfileSubScreen.MAIN
+    }
+
+    when (subScreen) {
+        ProfileSubScreen.MAIN -> ProfileContent(
+            uiState = uiState,
+            selectedTab = selectedTab,
+            onTabSelected = onTabSelected,
+            onSignOutClick = onSignOutClick,
+            onEditProfileClick = { subScreen = ProfileSubScreen.EDIT_PROFILE },
+            onHolidayListClick = { subScreen = ProfileSubScreen.HOLIDAY_LIST },
+            onAddLeaveClick = { subScreen = ProfileSubScreen.ADD_LEAVE },
+        )
+        ProfileSubScreen.EDIT_PROFILE -> EditProfileScreen(
+            onBackClick = { subScreen = ProfileSubScreen.MAIN },
+            onSaved = {
+                viewModel.refresh()
+                subScreen = ProfileSubScreen.MAIN
+            },
+        )
+        ProfileSubScreen.HOLIDAY_LIST -> HolidayListScreen(
+            onBackClick = { subScreen = ProfileSubScreen.MAIN },
+        )
+        ProfileSubScreen.ADD_LEAVE -> AddLeaveScreen(
+            onBackClick = { subScreen = ProfileSubScreen.MAIN },
+        )
+    }
 }
 
 @Composable
@@ -105,7 +138,12 @@ fun ProfileContent(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     onSignOutClick: () -> Unit,
+    onEditProfileClick: () -> Unit = {},
+    onHolidayListClick: () -> Unit = {},
+    onAddLeaveClick: () -> Unit = {},
 ) {
+    var showSignOutConfirm by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
 
@@ -130,33 +168,33 @@ fun ProfileContent(
                 ) {
                     Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
-                    ProfileHeaderCard(uiState)
+                    ProfileHeaderCard(uiState, onAvatarClick = onEditProfileClick)
 
                     ProfileMenuRow(
                         icon = { PersonIcon() },
                         iconBackground = OrbitColors.accentBg,
                         label = "Edit profile",
                         hint = "Photo, name, role, shift, email, password",
-                        onClick = {},
+                        onClick = onEditProfileClick,
                     )
                     ProfileMenuRow(
                         icon = { CalendarIcon() },
                         iconBackground = OrbitColors.infoBg,
                         label = "Holiday list",
-                        hint = "Coming soon",
-                        onClick = {},
+                        hint = "Your personal holiday calendar",
+                        onClick = onHolidayListClick,
                     )
                     ProfileMenuRow(
                         icon = { PlusIcon() },
                         iconBackground = OrbitColors.successBg,
                         label = "Add leave",
-                        hint = "Coming soon",
-                        onClick = {},
+                        hint = "Track your own leave",
+                        onClick = onAddLeaveClick,
                     )
 
                     WorkDetailsCard(uiState)
 
-                    SignOutRow(onClick = onSignOutClick)
+                    SignOutRow(onClick = { showSignOutConfirm = true })
 
                     FooterCredits()
 
@@ -164,6 +202,23 @@ fun ProfileContent(
                 }
             }
         }
+    }
+
+    if (showSignOutConfirm) {
+        AlertDialog(
+            onDismissRequest = { showSignOutConfirm = false },
+            title = { Text(text = "Sign out?", style = OrbitTypography.titleMedium) },
+            text = { Text(text = "You'll need to sign in again to continue.", style = OrbitTypography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSignOutConfirm = false
+                    onSignOutClick()
+                }) { Text("Sign out", color = OrbitColors.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSignOutConfirm = false }) { Text("Cancel") }
+            },
+        )
     }
 }
 
@@ -175,7 +230,7 @@ fun ProfileContent(
  * for their own radial-gradient references, so this stays visually consistent with them.
  */
 @Composable
-private fun ProfileHeaderCard(uiState: ProfileUiState) {
+private fun ProfileHeaderCard(uiState: ProfileUiState, onAvatarClick: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -225,23 +280,31 @@ private fun ProfileHeaderCard(uiState: ProfileUiState) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(modifier = Modifier.size(64.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(
-                            brush = Brush.linearGradient(
-                                colors = listOf(OrbitColors.purple500, OrbitColors.blue500),
-                            ),
-                            shape = CircleShape,
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = uiState.initials,
-                        style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 20.sp),
-                        color = Color.White,
+            Box(modifier = Modifier.size(64.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
+                if (uiState.photoUrl.isNotBlank()) {
+                    AsyncImage(
+                        model = uiState.photoUrl,
+                        contentDescription = "Profile photo",
+                        modifier = Modifier.size(64.dp).clip(CircleShape),
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .background(
+                                brush = Brush.linearGradient(
+                                    colors = listOf(OrbitColors.purple500, OrbitColors.blue500),
+                                ),
+                                shape = CircleShape,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = uiState.initials,
+                            style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 20.sp),
+                            color = Color.White,
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -333,6 +396,9 @@ private fun WorkDetailsCard(uiState: ProfileUiState) {
         Spacer(modifier = Modifier.height(14.dp))
         Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
             DetailRow(key = "Email", value = uiState.email.ifBlank { "—" })
+            if (uiState.role.isNotBlank()) {
+                DetailRow(key = "Role", value = uiState.role)
+            }
             if (shiftLabel != null) {
                 DetailRow(key = "Shift", value = shiftLabel)
             }

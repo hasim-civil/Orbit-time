@@ -16,7 +16,7 @@ data class DailyAttendance(
 
 enum class AttendanceRangeMode { WEEK, MONTH }
 
-/** Leave and Holiday have no data source yet (their own phases), so classifyDay never produces them today. */
+/** Holiday has no data source yet (its own phase), so classifyDay never produces it today. */
 enum class AttendanceStatus { PRESENT, LATE, ABSENT, LEAVE, HOLIDAY }
 
 data class AttendanceSummary(
@@ -55,31 +55,37 @@ object AttendanceStats {
         now: Instant = Instant.now(),
         zone: ZoneId = ZoneId.systemDefault(),
         lateAfter: LocalTime = DEFAULT_LATE_AFTER,
+        leaveDates: Set<LocalDate> = emptySet(),
     ): AttendanceSummary {
         var present = 0
         var absent = 0
         var late = 0
+        var leave = 0
         var worked = Duration.ZERO
         var overtime = Duration.ZERO
 
         var date = rangeStart
         while (!date.isAfter(rangeEnd)) {
             if (date.dayOfWeek in SCHEDULED_DAYS) {
-                val record = records[date]
-                val checkInAt = record?.checkInAt
-                when {
-                    checkInAt != null -> {
-                        present += 1
-                        if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) late += 1
+                if (date in leaveDates) {
+                    leave += 1
+                } else {
+                    val record = records[date]
+                    val checkInAt = record?.checkInAt
+                    when {
+                        checkInAt != null -> {
+                            present += 1
+                            if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) late += 1
 
-                        val end = record.checkOutAt ?: if (date == today) now else null
-                        if (end != null) {
-                            val duration = Duration.between(checkInAt, end).let { if (it.isNegative) Duration.ZERO else it }
-                            worked += duration
-                            if (duration > OVERTIME_AFTER) overtime += duration - OVERTIME_AFTER
+                            val end = record.checkOutAt ?: if (date == today) now else null
+                            if (end != null) {
+                                val duration = Duration.between(checkInAt, end).let { if (it.isNegative) Duration.ZERO else it }
+                                worked += duration
+                                if (duration > OVERTIME_AFTER) overtime += duration - OVERTIME_AFTER
+                            }
                         }
+                        date.isBefore(today) -> absent += 1
                     }
-                    date.isBefore(today) -> absent += 1
                 }
             }
             date = date.plusDays(1)
@@ -93,7 +99,7 @@ object AttendanceStats {
             presentDays = present,
             absentDays = absent,
             lateDays = late,
-            leaveDays = 0,
+            leaveDays = leave,
             worked = worked,
             overtime = overtime,
             attendanceRatePercent = rate,
@@ -110,8 +116,10 @@ object AttendanceStats {
         today: LocalDate,
         zone: ZoneId = ZoneId.systemDefault(),
         lateAfter: LocalTime = DEFAULT_LATE_AFTER,
+        isOnLeave: Boolean = false,
     ): AttendanceStatus? {
         if (date.dayOfWeek !in SCHEDULED_DAYS) return null
+        if (isOnLeave) return AttendanceStatus.LEAVE
         return when {
             checkInAt != null -> if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
             date.isBefore(today) -> AttendanceStatus.ABSENT

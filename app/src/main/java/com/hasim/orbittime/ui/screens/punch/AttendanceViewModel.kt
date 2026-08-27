@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.leave.LeaveRepository
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceStats
@@ -62,6 +63,7 @@ class AttendanceViewModel(
     private val authRepository = AuthRepository()
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
+    private val leaveRepository = LeaveRepository()
     private val todayDate = AttendanceTimeFormat.today()
     private val todayKey = AttendanceTimeFormat.dateKey(todayDate)
 
@@ -71,6 +73,7 @@ class AttendanceViewModel(
     private val weekEnd = todayDate.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
 
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
+    private var leaveDates: Set<LocalDate> = emptySet()
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
@@ -85,9 +88,21 @@ class AttendanceViewModel(
         } else {
             observeRecord(uid)
             observeMonthRange(uid)
+            observeLeaves(uid)
             observeConnectivity()
             tickElapsedWhileRunning()
             loadShiftStart(uid)
+        }
+    }
+
+    private fun observeLeaves(uid: String) {
+        viewModelScope.launch {
+            leaveRepository.observeLeaves(uid)
+                .catch { /* Leave dates are an enhancement to the summary; a failure here shouldn't block attendance. */ }
+                .collect { leaves ->
+                    leaveDates = leaves.flatMap { it.dateRange() }.toSet()
+                    recomputeSummary()
+                }
         }
     }
 
@@ -158,6 +173,7 @@ class AttendanceViewModel(
                 today = todayDate,
                 rangeLabel = AttendanceTimeFormat.monthLabel(todayDate),
                 lateAfter = lateAfter,
+                leaveDates = leaveDates,
             )
             AttendanceRangeMode.WEEK -> AttendanceStats.summarize(
                 records = rangeRecords,
@@ -166,6 +182,7 @@ class AttendanceViewModel(
                 today = todayDate,
                 rangeLabel = AttendanceTimeFormat.weekRangeLabel(weekStart, weekEnd),
                 lateAfter = lateAfter,
+                leaveDates = leaveDates,
             )
         }
         _uiState.update { it.copy(isSummaryLoading = false, summary = summary) }
