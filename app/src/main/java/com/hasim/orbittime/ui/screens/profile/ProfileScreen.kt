@@ -8,6 +8,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -47,6 +48,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,7 +56,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -66,6 +67,7 @@ import com.hasim.orbittime.ui.theme.Manrope
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -281,10 +283,14 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, onAvatarClick: () -> Unit
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(modifier = Modifier.size(64.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
-                if (uiState.photoUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = uiState.photoUrl,
+                val decodedPhoto = remember(uiState.photoBase64) {
+                    uiState.photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
+                }
+                if (decodedPhoto != null) {
+                    Image(
+                        bitmap = decodedPhoto,
                         contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.size(64.dp).clip(CircleShape),
                     )
                 } else {

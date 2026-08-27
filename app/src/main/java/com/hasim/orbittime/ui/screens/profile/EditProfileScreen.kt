@@ -3,6 +3,7 @@ package com.hasim.orbittime.ui.screens.profile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -45,6 +47,7 @@ import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -89,15 +92,24 @@ fun EditProfileScreen(
                     .clickable { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                 contentAlignment = Alignment.Center,
             ) {
-                val photoModel = uiState.localPhotoPreview ?: uiState.photoUrl.takeIf { it.isNotBlank() }
-                if (photoModel != null) {
-                    AsyncImage(
-                        model = photoModel,
+                val localPreview = uiState.localPhotoPreview
+                val decodedPhoto = remember(uiState.photoBase64) {
+                    uiState.photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
+                }
+                when {
+                    localPreview != null -> AsyncImage(
+                        model = localPreview,
                         contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.size(88.dp).clip(CircleShape),
                     )
-                } else {
-                    Box(
+                    decodedPhoto != null -> Image(
+                        bitmap = decodedPhoto,
+                        contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(88.dp).clip(CircleShape),
+                    )
+                    else -> Box(
                         modifier = Modifier
                             .size(88.dp)
                             .background(

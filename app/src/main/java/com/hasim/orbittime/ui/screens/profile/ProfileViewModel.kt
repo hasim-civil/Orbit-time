@@ -17,7 +17,7 @@ data class ProfileUiState(
     val email: String = "",
     val initials: String = "?",
     val role: String = "",
-    val photoUrl: String = "",
+    val photoBase64: String = "",
     val shiftStart: String? = null,
     val shiftEnd: String? = null,
 )
@@ -63,7 +63,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                             name = profile.name.takeIf { name -> name.isNotBlank() } ?: it.name,
                             email = profile.email.takeIf { email -> email.isNotBlank() } ?: it.email,
                             role = profile.role,
-                            photoUrl = profile.photoUrl,
+                            photoBase64 = profile.photoBase64,
                             shiftStart = profile.shiftStart,
                             shiftEnd = profile.shiftEnd,
                         )

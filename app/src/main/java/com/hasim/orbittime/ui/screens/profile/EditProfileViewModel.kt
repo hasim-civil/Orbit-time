@@ -5,16 +5,18 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.auth.AuthRepository
-import com.hasim.orbittime.data.storage.StorageRepository
 import com.hasim.orbittime.data.user.UserProfile
 import com.hasim.orbittime.data.user.UserProfileRepository
+import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val ShiftTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -23,7 +25,7 @@ data class EditProfileUiState(
     val name: String = "",
     val email: String = "",
     val role: String = "",
-    val photoUrl: String = "",
+    val photoBase64: String = "",
     val localPhotoPreview: Uri? = null,
     val shiftStart: LocalTime = LocalTime.of(9, 0),
     val shiftEnd: LocalTime = LocalTime.of(17, 30),
@@ -34,12 +36,12 @@ data class EditProfileUiState(
 
 /** Backs the Edit Profile screen: loads the real signed-in user's data, then saves any changes
  * back through the same [AuthRepository] (name/email/password) and [UserProfileRepository]
- * (role/shift/photo) every other screen already uses, plus [StorageRepository] for the photo. */
+ * (role/shift/photo) every other screen already uses — the photo is compressed and stored
+ * inline via [ImageCodec] rather than Firebase Storage, which needs the paid Blaze plan. */
 class EditProfileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val authRepository = AuthRepository()
     private val profileRepository = UserProfileRepository()
-    private val storageRepository = StorageRepository()
 
     private val _uiState = MutableStateFlow(EditProfileUiState())
     val uiState: StateFlow<EditProfileUiState> = _uiState.asStateFlow()
@@ -59,7 +61,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                         isLoading = false,
                         name = profile?.name?.takeIf { it.isNotBlank() } ?: current.name,
                         role = profile?.role.orEmpty(),
-                        photoUrl = profile?.photoUrl.orEmpty(),
+                        photoBase64 = profile?.photoBase64.orEmpty(),
                         shiftStart = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() } ?: current.shiftStart,
                         shiftEnd = profile?.shiftEnd?.let { runCatching { LocalTime.parse(it) }.getOrNull() } ?: current.shiftEnd,
                     )
@@ -92,11 +94,16 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
         viewModelScope.launch {
             var firstError: String? = null
 
-            var uploadedPhotoUrl: String? = null
+            var encodedPhoto: String? = null
             pendingPhotoUri?.let { uri ->
-                storageRepository.uploadProfilePhoto(uid, uri)
-                    .onSuccess { url -> uploadedPhotoUrl = url }
-                    .onFailure { error -> firstError = firstError ?: error.message }
+                val encoded = withContext(Dispatchers.IO) {
+                    runCatching { ImageCodec.compressToBase64(getApplication(), uri) }.getOrNull()
+                }
+                if (encoded != null) {
+                    encodedPhoto = encoded
+                } else {
+                    firstError = firstError ?: "Couldn't process that photo. Please pick another."
+                }
             }
 
             val trimmedName = name.trim()
@@ -122,7 +129,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                 name = trimmedName,
                 email = authRepository.currentUser?.email ?: trimmedEmail,
                 role = role.trim(),
-                photoUrl = uploadedPhotoUrl ?: existing?.photoUrl.orEmpty(),
+                photoBase64 = encodedPhoto ?: existing?.photoBase64.orEmpty(),
                 shiftStart = ShiftTimeFormatter.format(shiftStart),
                 shiftEnd = ShiftTimeFormatter.format(shiftEnd),
             )
