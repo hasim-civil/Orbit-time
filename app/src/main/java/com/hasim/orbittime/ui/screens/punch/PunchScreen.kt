@@ -122,9 +122,11 @@ fun PunchContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = OrbitSpacing.screenHorizontal)
+                        .padding(horizontal = 14.dp)
                         .cardRiseEntrance(),
                 ) {
+                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
+
                     if (!uiState.isOnline) {
                         InlineBanner(text = "You're offline. Check-in/out needs a connection.", color = OrbitColors.warningDark, background = OrbitColors.warningBg)
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
@@ -143,9 +145,9 @@ fun PunchContent(
                         }
                     } else {
                         PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
                         CheckInOutMiniCards(uiState)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
                         PunchTimeActionRow(
                             icon = "✎",
                             iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
@@ -355,7 +357,7 @@ private fun PunchHeroCard(
                 ),
                 shape = OrbitShapes.hero,
             )
-            .padding(vertical = OrbitSpacing.xxl, horizontal = OrbitSpacing.lg),
+            .padding(vertical = OrbitSpacing.xxl, horizontal = 22.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -459,7 +461,7 @@ private fun PunchTimeActionRow(
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.medium)
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(OrbitSpacing.md),
+            .padding(horizontal = 17.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(

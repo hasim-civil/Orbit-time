@@ -128,6 +128,8 @@ fun TimesheetContent(
                         .padding(horizontal = TimesheetHorizontalMargin)
                         .cardRiseEntrance(),
                 ) {
+                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
+
                     if (uiState.errorMessage != null) {
                         InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
@@ -151,7 +153,7 @@ fun TimesheetContent(
                             onPreviousMonth = onPreviousMonth,
                             onNextMonth = onNextMonth,
                         )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.lg))
+                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
                         DailyHistoryCard(history = uiState.history)
                     }
 

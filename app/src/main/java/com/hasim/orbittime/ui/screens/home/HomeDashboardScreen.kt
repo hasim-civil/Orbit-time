@@ -74,6 +74,12 @@ import kotlin.math.sin
 
 private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 
+/** Reference's dashboard tab content uses a tighter side margin (14px) than the auth flow's
+ * own screens (~24-26px) — matched here rather than via the shared OrbitSpacing.screenHorizontal
+ * token, which auth screens still rely on. */
+private val DashboardHorizontalMargin = 14.dp
+private val DashboardSectionGap = 13.dp
+
 @Composable
 fun HomeDashboardScreen(
     userDisplayName: String,
@@ -122,38 +128,40 @@ fun HomeDashboardContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = OrbitSpacing.screenHorizontal)
+                        .padding(horizontal = DashboardHorizontalMargin)
                         .cardRiseEntrance(),
                 ) {
+                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+
                     if (uiState.isLoading) {
-                        LoadingBox(height = 160.dp)
+                        LoadingBox(height = 140.dp)
                     } else {
                         GreetingCard(userDisplayName, uiState)
                     }
 
-                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                    Spacer(modifier = Modifier.height(DashboardSectionGap))
 
                     if (uiState.summaryErrorMessage != null) {
                         InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                        Spacer(modifier = Modifier.height(DashboardSectionGap))
                     } else if (!uiState.isOnline) {
                         InlineBanner(
                             text = "You're offline. Showing the last synced attendance data.",
                             color = OrbitColors.warningDark,
                             background = OrbitColors.warningBg,
                         )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                        Spacer(modifier = Modifier.height(DashboardSectionGap))
                     }
 
                     if (uiState.isSummaryLoading) {
-                        LoadingBox(height = 200.dp)
+                        LoadingBox(height = 180.dp)
                     } else {
                         MonthlyAttendanceCard(
                             summary = uiState.summary,
                             rangeMode = uiState.rangeMode,
                             onRangeModeSelected = onRangeModeSelected,
                         )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                        Spacer(modifier = Modifier.height(DashboardSectionGap))
                         AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
                     }
 
@@ -179,7 +187,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.md),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
@@ -221,7 +229,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         Row(
             modifier = Modifier.height(IntrinsicSize.Max),
@@ -310,7 +318,7 @@ private fun MonthlyAttendanceCard(
                 brush = Brush.linearGradient(colors = listOf(OrbitColors.void300, OrbitColors.void600, OrbitColors.void900)),
                 shape = OrbitShapes.card,
             )
-            .padding(OrbitSpacing.md),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -325,12 +333,12 @@ private fun MonthlyAttendanceCard(
             RangeModeToggle(selected = rangeMode, onSelected = onRangeModeSelected)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 128.dp)
+            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 118.dp)
 
-            Spacer(modifier = Modifier.width(OrbitSpacing.md))
+            Spacer(modifier = Modifier.width(OrbitSpacing.lg))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "${summary.attendanceRatePercent}%", style = OrbitTypography.displayMedium, color = OrbitColors.cream50)
@@ -351,7 +359,7 @@ private fun AttendanceRing(
     presentDays: Int,
     ratePercent: Int,
     modifier: Modifier = Modifier,
-    diameter: Dp = 128.dp,
+    diameter: Dp = 118.dp,
 ) {
     // The outer glow sways back and forth like a wave rather than spinning all the way
     // around, plus the reference's "ringBreath" (5.5s arc breathe) and a small comet dot
@@ -495,7 +503,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.md),
+            .padding(OrbitSpacing.lg),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
