@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
@@ -40,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -66,6 +69,7 @@ import com.hasim.orbittime.ui.screens.punch.PunchUiState
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
 import com.hasim.orbittime.ui.theme.InstrumentSerif
 import com.hasim.orbittime.ui.theme.OrbitColors
+import com.hasim.orbittime.ui.theme.PixelifySans
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
@@ -85,10 +89,15 @@ private val DashboardHorizontalMargin = 14.dp
 private val DashboardSectionGap = 13.dp
 
 // Text styles below are measured directly from the reference's inline styles for this screen —
-// the reference contrasts an editorial serif for headline moments (greeting, clock, month
-// label, the two big ring numbers) against Manrope for everything else, which the shared
-// OrbitTypography scale doesn't capture for these specific spots (it uses Manrope for them).
-private val GreetingHeadlineStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Bold, fontSize = 23.sp, lineHeight = 26.sp, letterSpacing = (-0.3).sp)
+// the reference contrasts an editorial serif for headline moments (clock, month label, the two
+// big ring numbers) against Manrope for everything else, which the shared OrbitTypography scale
+// doesn't capture for these specific spots (it uses Manrope for them).
+//
+// The main greeting is a deliberate departure from the reference: a bold Pixelify Sans
+// dot-matrix face for a premium, Nothing-Phone-style accent moment, scoped to only this one
+// piece of text — every other heading keeps Instrument Serif. A small positive letter-spacing
+// (rather than the editorial styles' tight/negative tracking) keeps the blocky glyphs legible.
+private val GreetingHeadlineStyle = TextStyle(fontFamily = PixelifySans, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 27.sp, letterSpacing = 0.3.sp)
 private val ClockTimeStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 23.sp, lineHeight = 23.sp)
 private val MonthHeadingStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 22.sp, lineHeight = 24.sp)
 private val RingBigNumberStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 26.sp, lineHeight = 26.sp)
@@ -236,7 +245,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .background(statusColor.copy(alpha = 0.12f), CircleShape)
-                .padding(horizontal = OrbitSpacing.md, vertical = OrbitSpacing.xs),
+                .padding(horizontal = 11.dp, vertical = 6.dp),
         ) {
             BreathingStatusDot(color = statusColor)
             Spacer(modifier = Modifier.width(OrbitSpacing.xs))
@@ -297,9 +306,9 @@ private fun HomeStatCell(label: String, value: String, modifier: Modifier = Modi
         modifier = modifier
             .background(
                 if (emphasized) OrbitColors.ink900 else OrbitColors.mist,
-                OrbitShapes.medium,
+                OrbitShapes.small,
             )
-            .padding(OrbitSpacing.sm),
+            .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
     ) {
         Text(
             text = label,
@@ -419,7 +428,10 @@ private fun AttendanceRing(
         )
 
         Canvas(modifier = Modifier.size(diameter)) {
-            val strokeWidth = size.minDimension * 0.11f
+            // Reference's ring is drawn at stroke-width 13 inside a 146-unit viewBox but
+            // displayed at 118px — i.e. a stroke that's 13/146 ≈ 8.9% of the rendered
+            // diameter, not the fraction of the box a "13" might suggest at face value.
+            val strokeWidth = size.minDimension * 0.089f
             val radius = (size.minDimension - strokeWidth) / 2f
             val center = Offset(size.width / 2f, size.height / 2f)
             val topLeft = Offset(center.x - radius, center.y - radius)
@@ -485,8 +497,9 @@ private fun LegendRow(color: Color, text: String) {
 private fun RangeModeToggle(selected: AttendanceRangeMode, onSelected: (AttendanceRangeMode) -> Unit) {
     Row(
         modifier = Modifier
-            .background(Color.White.copy(alpha = 0.12f), OrbitShapes.pill)
-            .padding(2.dp),
+            .background(Color.White.copy(alpha = 0.08f), OrbitShapes.pill)
+            .border(1.dp, Color.White.copy(alpha = 0.12f), OrbitShapes.pill)
+            .padding(3.dp),
     ) {
         ToggleSegment(label = "Week", selected = selected == AttendanceRangeMode.WEEK) { onSelected(AttendanceRangeMode.WEEK) }
         ToggleSegment(label = "Month", selected = selected == AttendanceRangeMode.MONTH) { onSelected(AttendanceRangeMode.MONTH) }
@@ -501,7 +514,7 @@ private fun ToggleSegment(label: String, selected: Boolean, onClick: () -> Unit)
             .clip(OrbitShapes.pill)
             .background(if (selected) OrbitColors.cream50 else Color.Transparent, OrbitShapes.pill)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = OrbitSpacing.md, vertical = OrbitSpacing.xs),
+            .padding(horizontal = OrbitSpacing.md, vertical = 6.dp),
     ) {
         Text(
             text = label,
@@ -536,9 +549,9 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
-            SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.success, background = OrbitColors.successBg, value = summary.presentDays.toString(), label = "Present")
-            SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.danger, background = OrbitColors.dangerBg, value = summary.absentDays.toString(), label = "Absent")
-            SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.warning, background = OrbitColors.warningBg, value = summary.lateDays.toString(), label = "Late")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.success, value = summary.presentDays.toString(), label = "Present")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.danger, value = summary.absentDays.toString(), label = "Absent")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, value = summary.lateDays.toString(), label = "Late")
         }
 
         Spacer(modifier = Modifier.height(OrbitSpacing.sm))
@@ -546,16 +559,14 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(
                 modifier = Modifier.weight(1f),
-                dotColor = OrbitColors.accent,
-                background = OrbitColors.accentBg,
+                accent = OrbitColors.accent,
                 value = AttendanceTimeFormat.wholeHoursLabel(summary.worked),
                 label = "Worked",
             )
-            SummaryCell(modifier = Modifier.weight(1f), dotColor = OrbitColors.info, background = OrbitColors.infoBg, value = summary.leaveDays.toString(), label = "Leave")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.info, value = summary.leaveDays.toString(), label = "Leave")
             SummaryCell(
                 modifier = Modifier.weight(1f),
-                dotColor = OrbitColors.ink900,
-                background = OrbitColors.mist,
+                accent = OrbitColors.ink900,
                 value = AttendanceTimeFormat.wholeHoursLabel(summary.overtime),
                 label = "Overtime",
             )
@@ -563,14 +574,49 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
     }
 }
 
+private val SummaryCellChipShape = RoundedCornerShape(7.dp)
+
+/**
+ * Reference's per-stat "glass" formula, ported directly: a diagonal tint-to-white gradient
+ * fill, a 1dp border and a small icon chip (a rounded tile in the same accent, holding a
+ * solid dot of it) — all derived from one [accent] color rather than the flat pastel tokens
+ * this cell used before, so each stat still reads as its own color without six near-identical
+ * flat swatches.
+ */
 @Composable
-private fun SummaryCell(modifier: Modifier, dotColor: Color, background: Color, value: String, label: String) {
+private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label: String) {
     Column(
         modifier = modifier
-            .background(background, OrbitShapes.medium)
-            .padding(OrbitSpacing.sm),
+            .shadow(
+                elevation = 6.dp,
+                shape = OrbitShapes.small,
+                ambientColor = accent.copy(alpha = 0.25f),
+                spotColor = accent.copy(alpha = 0.25f),
+            )
+            .background(
+                brush = Brush.linearGradient(
+                    0f to accent.copy(alpha = 0.12f),
+                    0.42f to accent.copy(alpha = 0.04f),
+                    1f to Color.White.copy(alpha = 0.72f),
+                ),
+                shape = OrbitShapes.small,
+            )
+            .border(1.dp, accent.copy(alpha = 0.16f), OrbitShapes.small)
+            .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
     ) {
-        Box(modifier = Modifier.size(8.dp).background(dotColor, CircleShape))
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.1f)),
+                    ),
+                    shape = SummaryCellChipShape,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
+        }
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
         Text(text = value, style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
         Spacer(modifier = Modifier.height(OrbitSpacing.xxs))

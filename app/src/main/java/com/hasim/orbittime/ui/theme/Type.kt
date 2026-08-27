@@ -26,6 +26,13 @@ val Manrope = FontFamily(
     Font(R.font.manrope_extrabold, FontWeight.ExtraBold),
 )
 
+/** A premium pixel/dot-matrix accent face used ONLY for the Home dashboard's main greeting
+ * text (see HomeDashboardScreen.GreetingHeadlineStyle) — deliberately not part of
+ * [OrbitTypography]'s shared scale, since every other heading in the app keeps Instrument Serif. */
+val PixelifySans = FontFamily(
+    Font(R.font.pixelify_sans_bold, FontWeight.Bold),
+)
+
 /** Named brand text styles, used directly where the Material3 slot names don't fit. */
 object OrbitTypography {
     val displayHero = TextStyle(
