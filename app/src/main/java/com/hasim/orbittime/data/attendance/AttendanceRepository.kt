@@ -58,7 +58,7 @@ class AttendanceRepository(
 
     suspend fun checkIn(uid: String, date: String): Result<Unit> = runCatching {
         val docRef = dayDoc(uid, date)
-        firestore.runTransaction { transaction ->
+        firestore.runTransaction<Unit> { transaction ->
             val existing = transaction.get(docRef).toObject<AttendanceRecord>()
             when {
                 existing?.isCheckedIn == true ->
@@ -75,7 +75,7 @@ class AttendanceRepository(
 
     suspend fun checkOut(uid: String, date: String): Result<Unit> = runCatching {
         val docRef = dayDoc(uid, date)
-        firestore.runTransaction { transaction ->
+        firestore.runTransaction<Unit> { transaction ->
             val existing = transaction.get(docRef).toObject<AttendanceRecord>()
             when {
                 existing?.checkInAt == null ->
