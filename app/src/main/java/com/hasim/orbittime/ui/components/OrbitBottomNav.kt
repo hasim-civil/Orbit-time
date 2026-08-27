@@ -1,14 +1,17 @@
 package com.hasim.orbittime.ui.components
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -20,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -30,31 +34,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import kotlin.math.cos
+import kotlin.math.sin
 
 enum class OrbitTab { HOME, TIMESHEET, PUNCH, REPORTS, PROFILE }
 
-// Measured from the reference: pill height ~65dp, button ~68dp centered on the pill's
-// top edge. Total component height (button-top to pill-bottom) comes out to ~110dp —
-// that total must be the composable's own measured height, or the button's protrusion
-// gets clipped/ignored by whatever lays this component out.
-private val NavComponentHeight = 110.dp
+/** The button's own two-stop radial gradient — measured from the reference, no exact palette match. */
+private val ButtonSphereHighlight = Color(0xFF5A2FB0)
+
+/** The reference's press-release overshoot easing: cubic-bezier(0.3, 1.4, 0.5, 1). */
+private val PressEasing = CubicBezierEasing(0.3f, 1.4f, 0.5f, 1f)
+
+// Measured directly from the reference's live markup (60x60 button, margin-top: -28px, in a
+// 66px pill) at the reference's 393dp device width — not an approximation from a still image.
 private val PillHeight = 65.dp
-private val PillShape = RoundedCornerShape(percent = 50)
-private val ButtonDiameter = 70.dp
-private val ButtonGlowDiameter = 96.dp
+private val PillShape = RoundedCornerShape(26.dp)
+private val CenterSlotWidth = 68.dp
+private val ButtonDiameter = 59.dp
+private val ButtonGlowDiameter = 84.dp
+
+// The button's top edge sits this far above the pill's top edge — the rest of its height
+// (ButtonDiameter minus this) overlaps down into the pill. The component's own height must
+// span from the button's top down to the pill's bottom, or the protrusion gets clipped.
+private val ButtonAbovePill = 24.dp
+private val NavComponentHeight = ButtonAbovePill + PillHeight
 
 @Composable
 fun OrbitBottomNav(
@@ -68,119 +84,152 @@ fun OrbitBottomNav(
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .height(PillHeight)
-                .shadow(elevation = 10.dp, shape = PillShape)
                 .background(OrbitColors.cream50.copy(alpha = 0.8f), PillShape)
-                .padding(horizontal = OrbitSpacing.lg),
+                .padding(horizontal = OrbitSpacing.sm),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NavTabItem(NavGlyph.HOME, "Home", selectedTab == OrbitTab.HOME, Modifier.weight(1f)) { onTabSelected(OrbitTab.HOME) }
             NavTabItem(NavGlyph.TIMESHEET, "Timesheet", selectedTab == OrbitTab.TIMESHEET, Modifier.weight(1f)) { onTabSelected(OrbitTab.TIMESHEET) }
-            Box(modifier = Modifier.weight(1f))
+            Box(modifier = Modifier.width(CenterSlotWidth))
             NavTabItem(NavGlyph.REPORTS, "Reports", selectedTab == OrbitTab.REPORTS, Modifier.weight(1f)) { onTabSelected(OrbitTab.REPORTS) }
             NavTabItem(NavGlyph.PROFILE, "Profile", selectedTab == OrbitTab.PROFILE, Modifier.weight(1f)) { onTabSelected(OrbitTab.PROFILE) }
         }
 
-        // OrbitCenterButton is a ButtonGlowDiameter-tall box with the button centered inside it,
-        // so its own visual center sits at ButtonGlowDiameter/2 from its top. Offsetting by
-        // (pill-top minus that half-height) puts the button's actual center on the pill's top edge.
-        val pillTopFromComponentTop = NavComponentHeight - PillHeight
+        // The button's own bounding box top aligns with the component's top; the glow
+        // wrapper is centered on the button, so it's offset up by half the extra diameter.
         OrbitCenterButton(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .offset(y = pillTopFromComponentTop - ButtonGlowDiameter / 2),
+                .offset(y = -(ButtonGlowDiameter - ButtonDiameter) / 2),
             onClick = { onTabSelected(OrbitTab.PUNCH) },
         )
     }
 }
 
-/** The floating central action button. Its center sits on the pill's top edge and never moves with tab selection. */
+/** The floating central action button. Its position never moves with tab selection. */
 @Composable
 private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val infiniteTransition = rememberInfiniteTransition(label = "orbitButton")
-    val ringRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(16000, easing = LinearEasing)),
-        label = "ringRotation",
-    )
-    val breathe by infiniteTransition.animateFloat(
+    // The reference's "logoGlowSm" keyframe: a 6s ease-in-out box-shadow breathe between two
+    // states, reproduced here as a lerp between the two shadow colors on a triangle-wave float.
+    val glowT by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(animation = tween(2600, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
-        label = "breathe",
+        animationSpec = infiniteRepeatable(
+            animation = tween(3000, easing = CubicBezierEasing(0.42f, 0f, 0.58f, 1f)),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "glowBreathe",
     )
-    val pressedScale by animateFloatAsState(targetValue = if (isPressed) 0.94f else 1f, label = "pressedScale")
-    val breatheScale = 1f + breathe * 0.02f
-    val glowAlpha = 0.18f + breathe * 0.12f
+    // The core dot's "cloudPulse" keyframe: 0%:0.5, 35%:0.95, 65%:0.72, 100%:0.5 over 4s.
+    val coreAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 4000
+                0.5f at 0
+                0.95f at 1400
+                0.72f at 2600
+                0.5f at 4000
+            },
+        ),
+        label = "corePulse",
+    )
+    // The orbit dot's "animateMotion": one full lap around the tilted ring every 7s, linear.
+    val orbitAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(7000, easing = LinearEasing)),
+        label = "orbitAngle",
+    )
+    val pressedScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = tween(250, easing = PressEasing),
+        label = "pressedScale",
+    )
 
     Box(modifier = modifier.size(ButtonGlowDiameter), contentAlignment = Alignment.Center) {
+        val glowColor = lerp(Color(0xFF6D3BF5).copy(alpha = 0.22f), OrbitColors.purple600.copy(alpha = 0.44f), glowT)
         Box(
             modifier = Modifier
                 .size(ButtonGlowDiameter)
-                .graphicsLayer { alpha = glowAlpha }
-                .blur(16.dp)
-                .background(
-                    brush = Brush.radialGradient(colors = listOf(OrbitColors.violet600, Color.Transparent)),
-                    shape = CircleShape,
-                ),
+                .blur(17.dp)
+                .background(brush = Brush.radialGradient(colors = listOf(glowColor, Color.Transparent)), shape = CircleShape),
         )
 
         Box(
             modifier = Modifier
                 .size(ButtonDiameter)
-                .graphicsLayer {
-                    scaleX = breatheScale * pressedScale
-                    scaleY = breatheScale * pressedScale
-                }
-                .shadow(elevation = 12.dp, shape = CircleShape)
+                .graphicsLayer { scaleX = pressedScale; scaleY = pressedScale }
                 .drawWithCache {
                     val brush = Brush.radialGradient(
-                        colors = listOf(OrbitColors.purple600, OrbitColors.void500, OrbitColors.void900),
-                        center = Offset(size.width * 0.32f, size.height * 0.28f),
-                        radius = size.minDimension * 0.85f,
+                        0f to ButtonSphereHighlight,
+                        0.78f to OrbitColors.void500,
+                        center = Offset(size.width * 0.30f, size.height * 0.20f),
+                        radius = size.minDimension * 0.95f,
                     )
                     onDrawBehind { drawCircle(brush = brush) }
                 }
+                .border(0.75.dp, Color.White.copy(alpha = 0.12f), CircleShape)
                 .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            // Gloss highlight — a small soft light patch near the upper-left, giving the sphere volume.
+            OrbitRingGlyph(diameter = ButtonDiameter - 16.dp, orbitAngleDegrees = orbitAngle)
+
+            // The pulsing white "core" at the ring's center, with a soft lavender glow.
             Box(
                 modifier = Modifier
-                    .size(ButtonDiameter * 0.4f)
-                    .offset(x = -ButtonDiameter * 0.14f, y = -ButtonDiameter * 0.16f)
-                    .graphicsLayer { alpha = 0.22f }
+                    .size(18.dp)
+                    .graphicsLayer { alpha = coreAlpha * 0.6f }
                     .blur(6.dp)
+                    .background(Color(0xFFD6C4FF), CircleShape),
+            )
+            Box(
+                modifier = Modifier
+                    .size(11.dp)
+                    .graphicsLayer { alpha = coreAlpha }
                     .background(Color.White, CircleShape),
             )
-
-            OrbitRingGlyph(diameter = ButtonDiameter * 0.5f, rotationDegrees = ringRotation)
         }
     }
 }
 
 /**
- * The orbit ring + dot, matching the mark used elsewhere in the app (Welcome screen, top bar) but
- * rendered in plain white for this dark sphere, and — unlike those static marks — rotating slowly.
+ * The orbit glyph: a static tilted ring (–28°, matching the reference's fixed SVG transform —
+ * the ring itself never rotates) with a small dot continuously travelling around it, reproducing
+ * the reference's `<animateMotion>` orbit rather than spinning the whole ring.
  */
 @Composable
-private fun OrbitRingGlyph(diameter: Dp, rotationDegrees: Float) {
-    Canvas(modifier = Modifier.size(diameter).graphicsLayer { rotationZ = rotationDegrees }) {
-        val strokeWidth = size.minDimension * 0.12f
-        drawOval(
-            color = Color.White.copy(alpha = 0.95f),
-            topLeft = Offset(size.width * 0.02f, size.height * 0.32f),
-            size = Size(size.width * 0.96f, size.height * 0.36f),
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+private fun OrbitRingGlyph(diameter: Dp, orbitAngleDegrees: Float) {
+    Canvas(modifier = Modifier.size(diameter)) {
+        val rx = size.width * 0.40f
+        val ry = size.height * 0.255f
+        val center = Offset(size.width / 2f, size.height / 2f)
+        val tiltRad = Math.toRadians(-28.0)
+        val cosTilt = cos(tiltRad).toFloat()
+        val sinTilt = sin(tiltRad).toFloat()
+
+        rotate(degrees = -28f, pivot = center) {
+            drawOval(
+                color = OrbitColors.lavenderWhite.copy(alpha = 0.68f),
+                topLeft = Offset(center.x - rx, center.y - ry),
+                size = Size(rx * 2f, ry * 2f),
+                style = Stroke(width = size.minDimension * 0.06f),
+            )
+        }
+
+        val angleRad = Math.toRadians(orbitAngleDegrees.toDouble())
+        val localX = (rx * cos(angleRad)).toFloat()
+        val localY = (ry * sin(angleRad)).toFloat()
+        val dotCenter = Offset(
+            center.x + localX * cosTilt - localY * sinTilt,
+            center.y + localX * sinTilt + localY * cosTilt,
         )
-        drawCircle(
-            color = Color.White,
-            radius = size.minDimension * 0.09f,
-            center = Offset(size.width * 0.88f, size.height * 0.60f),
-        )
+        drawCircle(color = OrbitColors.purple500, radius = size.minDimension * 0.075f, center = dotCenter)
     }
 }
 

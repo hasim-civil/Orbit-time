@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.hasim.orbittime.ui.components.OrbitBottomNav
 import com.hasim.orbittime.ui.components.OrbitOutlineButton
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -71,7 +72,7 @@ fun ComingSoonScreen(
                 }
             }
 
-            Box(modifier = Modifier.padding(horizontal = OrbitSpacing.lg, vertical = OrbitSpacing.sm)) {
+            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
                 OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }

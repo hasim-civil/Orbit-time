@@ -147,7 +147,7 @@ fun TimesheetContent(
                 Spacer(modifier = Modifier.height(OrbitSpacing.xl))
             }
 
-            Box(modifier = Modifier.padding(horizontal = OrbitSpacing.lg, vertical = OrbitSpacing.sm)) {
+            Box(modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 25.dp)) {
                 OrbitBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
             }
         }
