@@ -54,14 +54,15 @@ private val ButtonDiameter = 156.dp
 
 private val ProgressEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 private val PressEasing = CubicBezierEasing(0.3f, 1.4f, 0.5f, 1f)
+private val OrbitSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 
 /**
  * The layered elapsed-time ring + tap target on the Punch hero card, reproducing the
  * reference's distinct animated layers rather than a single flattened ring:
- * a pulsing outer halo ("haloPulse"), a rotating decorative gradient dash ("orbitSpin"),
- * the real shift-progress ring (smoothly animated, not decorative), a soft pulsing edge
- * glow ("edgeGlow"), a counter-rotating conic glow behind the button ("revSpin"), and a
- * one-shot expanding ripple fired on tap ("punchGlow").
+ * a pulsing outer halo ("haloPulse"), a decorative gradient dash that sways like a wave
+ * ("orbitSpin"), the real shift-progress ring (smoothly animated, not decorative), a soft
+ * pulsing edge glow ("edgeGlow"), a counter-rotating conic glow behind the button
+ * ("revSpin"), and a one-shot expanding ripple fired on tap ("punchGlow").
  */
 @Composable
 fun ElapsedRing(
@@ -87,10 +88,12 @@ fun ElapsedRing(
         ),
         label = "halo",
     )
+    // The decorative dash ring sways back and forth like a wave, rather than spinning
+    // all the way around — a gentle pendulum drift, not a continuous rotation.
     val orbitRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(22000, easing = LinearEasing)),
+        initialValue = -24f,
+        targetValue = 24f,
+        animationSpec = infiniteRepeatable(animation = tween(4400, easing = OrbitSwayEasing), repeatMode = RepeatMode.Reverse),
         label = "orbitRotation",
     )
     val revRotation by infiniteTransition.animateFloat(

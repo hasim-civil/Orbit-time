@@ -1,5 +1,6 @@
 package com.hasim.orbittime.ui.screens.home
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -68,6 +69,8 @@ import com.hasim.orbittime.util.AttendanceTimeFormat
 import java.time.Instant
 import kotlin.math.cos
 import kotlin.math.sin
+
+private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
 
 @Composable
 fun HomeDashboardScreen(
@@ -344,13 +347,14 @@ private fun AttendanceRing(
     modifier: Modifier = Modifier,
     diameter: Dp = 128.dp,
 ) {
-    // The reference's "orbitSpin" (22s, outer conic glow), "ringBreath" (5.5s arc breathe),
-    // and the small comet dot that continuously circles the ring independent of the data value.
+    // The outer glow sways back and forth like a wave rather than spinning all the way
+    // around, plus the reference's "ringBreath" (5.5s arc breathe) and a small comet dot
+    // that continuously circles the ring independent of the data value.
     val infiniteTransition = rememberInfiniteTransition(label = "attendanceRing")
     val glowRotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(animation = tween(22000, easing = LinearEasing)),
+        initialValue = -24f,
+        targetValue = 24f,
+        animationSpec = infiniteRepeatable(animation = tween(4400, easing = AttendanceRingSwayEasing), repeatMode = RepeatMode.Reverse),
         label = "glowRotation",
     )
     val breathe by infiniteTransition.animateFloat(
