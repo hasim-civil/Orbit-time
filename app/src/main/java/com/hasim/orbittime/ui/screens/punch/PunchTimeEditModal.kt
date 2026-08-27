@@ -1,5 +1,6 @@
 package com.hasim.orbittime.ui.screens.punch
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +34,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -272,6 +275,43 @@ private fun ModalActionRow(cancelLabel: String, confirmLabel: String, confirmEna
     }
 }
 
+/** A single full-width primary action — used by [AddPastAttendanceModal], which (unlike
+ * [EditTimeModal]) has no separate Cancel button since the modal's own X close already covers
+ * "dismiss without saving". */
+@Composable
+private fun SingleActionRow(label: String, enabled: Boolean, background: Color, content: Color, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .background(if (enabled) background else OrbitColors.slate200, FieldShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = OrbitTypography.titleMedium, color = if (enabled) content else OrbitColors.slate500)
+    }
+}
+
+/** Small calendar glyph for the date row — a local icon rather than importing one from another
+ * screen's file, matching this app's existing convention of each screen owning its own icons. */
+@Composable
+private fun CalendarGlyph() {
+    Canvas(modifier = Modifier.size(15.dp)) {
+        val scale = size.minDimension / 20f
+        fun px(v: Float) = v * scale
+        drawRoundRect(
+            color = OrbitColors.violet600,
+            topLeft = Offset(px(3f), px(4.5f)),
+            size = androidx.compose.ui.geometry.Size(px(14f), px(12f)),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(px(3f), px(3f)),
+            style = Stroke(width = px(1.6f)),
+        )
+        drawLine(OrbitColors.violet600, Offset(px(3f), px(8.5f)), Offset(px(17f), px(8.5f)), strokeWidth = px(1.6f))
+        drawLine(OrbitColors.violet600, Offset(px(7f), px(3f)), Offset(px(7f), px(6f)), strokeWidth = px(1.6f))
+        drawLine(OrbitColors.violet600, Offset(px(13f), px(3f)), Offset(px(13f), px(6f)), strokeWidth = px(1.6f))
+    }
+}
+
 private fun to24Hour(hour12: Int, isAm: Boolean): Int = when {
     hour12 == 12 && isAm -> 0
     hour12 == 12 && !isAm -> 12
@@ -322,7 +362,7 @@ fun EditTimeModal(
             cancelLabel = "Cancel",
             confirmLabel = "Save",
             confirmEnabled = valid,
-            confirmBackground = OrbitColors.ink900,
+            confirmBackground = OrbitColors.violet600,
             confirmContent = OrbitColors.cream50,
             onCancel = onDismiss,
             onConfirm = { if (checkIn != null && checkOut != null) onConfirm(checkIn, checkOut, location) },
@@ -330,8 +370,8 @@ fun EditTimeModal(
     }
 }
 
-/** "Add attendance for {DATE}" — the reference's pastOpen sheet, same Hour/Minute/AM-PM and
- * location controls as [EditTimeModal], plus the date picker row and a live total. */
+/** "Add past attendance" — the reference's pastOpen sheet, same Hour/Minute/AM-PM and location
+ * controls as [EditTimeModal], plus a date picker row and a live total. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddPastAttendanceModal(
@@ -360,7 +400,7 @@ fun AddPastAttendanceModal(
     }
 
     PunchModalCard(
-        title = "Add attendance for ${AttendanceTimeFormat.dayLabel(selectedDate)}",
+        title = "Add past attendance",
         subtitle = "Log a shift you forgot to punch.",
         onDismiss = onDismiss,
     ) {
@@ -373,8 +413,14 @@ fun AddPastAttendanceModal(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = "Select date", style = OrbitTypography.bodyMedium, color = OrbitColors.slate600, modifier = Modifier.weight(1f))
-            Text(text = AttendanceTimeFormat.dayLabel(selectedDate), style = OrbitTypography.titleMedium, color = OrbitColors.ink900)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+                CalendarGlyph()
+                Text(text = "Select date", style = OrbitTypography.bodyMedium, color = OrbitColors.slate600)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(text = AttendanceTimeFormat.dayLabel(selectedDate), style = OrbitTypography.titleMedium, color = OrbitColors.ink900)
+                Text(text = "›", style = OrbitTypography.titleMedium, color = OrbitColors.violet600)
+            }
         }
         TimeFieldRow("CHECK IN", inHour, inMinute, inAm, { inHour = it }, { inMinute = it }, { inAm = it })
         TimeFieldRow("CHECK OUT", outHour, outMinute, outAm, { outHour = it }, { outMinute = it }, { outAm = it })
@@ -383,14 +429,12 @@ fun AddPastAttendanceModal(
             Text(text = "Total", style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
             Text(text = totalLabel, style = OrbitTypography.titleMedium, color = OrbitColors.ink900)
         }
-        ModalActionRow(
-            cancelLabel = "Cancel",
-            confirmLabel = "Add",
-            confirmEnabled = valid,
-            confirmBackground = OrbitColors.accentBg,
-            confirmContent = OrbitColors.accent,
-            onCancel = onDismiss,
-            onConfirm = { if (checkIn != null && checkOut != null) onConfirm(selectedDate, checkIn, checkOut, location) },
+        SingleActionRow(
+            label = "Add entry",
+            enabled = valid,
+            background = OrbitColors.violet600,
+            content = OrbitColors.cream50,
+            onClick = { if (checkIn != null && checkOut != null) onConfirm(selectedDate, checkIn, checkOut, location) },
         )
     }
 

@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import kotlin.math.cos
+import kotlin.math.sin
 
 // Measured from the reference's live markup (238/218/196/172/160px nested rings at the
 // reference's 393dp device width), not approximated from a still image.
@@ -59,9 +61,10 @@ private val PressEasing = CubicBezierEasing(0.3f, 1.4f, 0.5f, 1f)
 /**
  * The layered elapsed-time ring + tap target on the Punch hero card: three staggered
  * pulsing halo rings reading as one outward wave ("haloPulse"), the real shift-progress
- * ring (smoothly animated, not decorative), a soft pulsing edge glow ("edgeGlow"), a
- * counter-rotating conic glow behind the button ("revSpin"), and a one-shot expanding
- * ripple fired on tap ("punchGlow").
+ * ring (smoothly animated, not decorative), a small glowing dot continuously orbiting the
+ * ring ("orbitDot" — always alive, independent of check-in state, per the design's name), a
+ * soft pulsing edge glow ("edgeGlow"), a counter-rotating conic glow behind the button
+ * ("revSpin"), and a one-shot expanding ripple fired on tap ("punchGlow").
  */
 @Composable
 fun ElapsedRing(
@@ -105,6 +108,16 @@ fun ElapsedRing(
         targetValue = 0.8f,
         animationSpec = infiniteRepeatable(animation = tween(4500, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
         label = "edgeGlow",
+    )
+
+    // orbitDot: a small glowing orb that continuously travels the full circumference of the
+    // progress ring — a constant, always-visible loop (never gated on checked-in state, same
+    // as the other ambient layers here) so the "orbit" in Orbit Time always reads as alive.
+    val orbitAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(5200, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "orbitAngle",
     )
 
     // The real shift-progress ring smoothly animates to a new value on change, matching
@@ -167,6 +180,26 @@ fun ElapsedRing(
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
                 )
             }
+
+            // orbitDot — a small bright orb riding the ring's own circumference, continuously
+            // looping (not tied to the progress sweep above, which reports real data).
+            val angleRad = Math.toRadians((orbitAngle - 90f).toDouble())
+            val dotCenter = Offset(
+                x = center.x + radius * cos(angleRad).toFloat(),
+                y = center.y + radius * sin(angleRad).toFloat(),
+            )
+            val dotRadius = strokeWidth * 0.95f
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(OrbitColors.cyan400.copy(alpha = 0.65f), Color.Transparent),
+                    center = dotCenter,
+                    radius = dotRadius * 3.4f,
+                ),
+                radius = dotRadius * 3.4f,
+                center = dotCenter,
+            )
+            drawCircle(color = Color.White, radius = dotRadius, center = dotCenter)
+            drawCircle(color = OrbitColors.cyan400, radius = dotRadius * 0.5f, center = dotCenter)
         }
 
         // 3. edgeGlow — soft pulsing outline around the progress ring.
