@@ -43,16 +43,18 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             )
         }
 
-        val uid = user?.uid ?: return
-        viewModelScope.launch {
-            val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
-            if (profile != null) {
-                _uiState.update {
-                    it.copy(
-                        name = profile.name.takeIf { name -> name.isNotBlank() } ?: it.name,
-                        shiftStart = profile.shiftStart,
-                        shiftEnd = profile.shiftEnd,
-                    )
+        val uid = user?.uid
+        if (uid != null) {
+            viewModelScope.launch {
+                val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
+                if (profile != null) {
+                    _uiState.update {
+                        it.copy(
+                            name = profile.name.takeIf { name -> name.isNotBlank() } ?: it.name,
+                            shiftStart = profile.shiftStart,
+                            shiftEnd = profile.shiftEnd,
+                        )
+                    }
                 }
             }
         }
