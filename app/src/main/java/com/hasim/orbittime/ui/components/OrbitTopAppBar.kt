@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -153,15 +154,19 @@ fun OrbitTopAppBar(
                     }
                     drawPath(bell, color = OrbitColors.ink900)
                 }
-                if (hasNotification && !seen) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .border(2.dp, OrbitColors.cream50, CircleShape)
-                            .background(OrbitColors.danger, CircleShape)
-                            .align(Alignment.TopEnd),
-                    )
-                }
+            }
+            if (hasNotification && !seen) {
+                // Sits outside the button's own clipped Box — placed inside it, the CircleShape
+                // clip cut off most of the dot since aligning to the bounding square's corner
+                // lands mostly outside the inscribed circle.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = (-2).dp, y = 2.dp)
+                        .size(10.dp)
+                        .border(1.5.dp, OrbitColors.cream50, CircleShape)
+                        .background(OrbitColors.danger, CircleShape),
+                )
             }
             DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                 DropdownMenuItem(
