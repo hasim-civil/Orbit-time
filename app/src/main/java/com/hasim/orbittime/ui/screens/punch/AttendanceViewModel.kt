@@ -49,10 +49,15 @@ data class PunchUiState(
     val rangeMode: AttendanceRangeMode = AttendanceRangeMode.MONTH,
     val summary: AttendanceSummary = AttendanceSummary(),
     val summaryErrorMessage: String? = null,
+    val successMessage: PunchSuccessKind? = null,
 ) {
     val isCheckedIn: Boolean get() = checkInAt != null && checkOutAt == null
     val isCompleted: Boolean get() = checkInAt != null && checkOutAt != null
 }
+
+/** Which punch just succeeded — drives the ~1s custom success overlay, never shown until the
+ * Firestore write it reports on has actually completed. */
+enum class PunchSuccessKind { CHECK_IN, CHECK_OUT }
 
 private const val TICK_INTERVAL_MS = 30_000L
 
@@ -221,7 +226,7 @@ class AttendanceViewModel(
         _uiState.update { it.copy(isSubmitting = true, errorMessage = null) }
         viewModelScope.launch {
             attendanceRepository.checkIn(uid, todayKey)
-                .onSuccess { _uiState.update { it.copy(isSubmitting = false) } }
+                .onSuccess { _uiState.update { it.copy(isSubmitting = false, successMessage = PunchSuccessKind.CHECK_IN) } }
                 .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, errorMessage = error.message) } }
         }
     }
@@ -231,9 +236,14 @@ class AttendanceViewModel(
         _uiState.update { it.copy(isSubmitting = true, errorMessage = null) }
         viewModelScope.launch {
             attendanceRepository.checkOut(uid, todayKey)
-                .onSuccess { _uiState.update { it.copy(isSubmitting = false) } }
+                .onSuccess { _uiState.update { it.copy(isSubmitting = false, successMessage = PunchSuccessKind.CHECK_OUT) } }
                 .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, errorMessage = error.message) } }
         }
+    }
+
+    /** Clears the success overlay once the UI has shown it for its ~1s window. */
+    fun consumeSuccessMessage() {
+        _uiState.update { it.copy(successMessage = null) }
     }
 
     /** Corrects today's punch times — e.g. a forgotten check-in or a check-out that ran a few minutes late. */

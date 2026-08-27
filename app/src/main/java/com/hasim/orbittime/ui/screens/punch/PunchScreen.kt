@@ -1,7 +1,9 @@
 package com.hasim.orbittime.ui.screens.punch
 
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,18 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimeInput
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,13 +31,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,6 +56,7 @@ import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
 import com.hasim.orbittime.util.AttendanceTimeFormat
+import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -94,6 +88,7 @@ fun PunchScreen(
         onCheckOutClick = viewModel::checkOut,
         onEditTime = viewModel::editTodayTimes,
         onAddPastAttendance = viewModel::addPastAttendance,
+        onSuccessMessageConsumed = viewModel::consumeSuccessMessage,
     )
 }
 
@@ -107,231 +102,158 @@ fun PunchContent(
     onCheckOutClick: () -> Unit,
     onEditTime: (LocalTime, LocalTime?, AttendanceLocation?) -> Unit = { _, _, _ -> },
     onAddPastAttendance: (LocalDate, LocalTime, LocalTime, AttendanceLocation?) -> Unit = { _, _, _, _ -> },
+    onSuccessMessageConsumed: () -> Unit = {},
 ) {
     var showEditTimeDialog by remember { mutableStateOf(false) }
-    var showPastDatePicker by remember { mutableStateOf(false) }
-    var pastAttendanceDate by remember { mutableStateOf<LocalDate?>(null) }
-    Box(modifier = Modifier.fillMaxSize()) {
-        OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
+    var pastAttendanceDate by remember { mutableStateOf<LocalDate?>(AttendanceTimeFormat.today()) }
+    var showAddPastModal by remember { mutableStateOf(false) }
 
-        Column(
+    val modalOpen = showEditTimeDialog || showAddPastModal
+    val blurBehind = modalOpen && Build.VERSION.SDK_INT >= 31
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing),
+                .then(if (blurBehind) Modifier.blur(6.dp) else Modifier),
         ) {
-            OrbitTopAppBar(
-                userInitials = userInitials,
-                hasNotification = true,
-                onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
-            )
+            OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
 
-            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 14.dp)
-                        .cardRiseEntrance(),
-                ) {
-                    Spacer(modifier = Modifier.height(OrbitSpacing.md))
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing),
+            ) {
+                OrbitTopAppBar(
+                    userInitials = userInitials,
+                    hasNotification = true,
+                    onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
+                )
 
-                    if (!uiState.isOnline) {
-                        InlineBanner(text = "You're offline. Check-in/out needs a connection.", color = OrbitColors.warningDark, background = OrbitColors.warningBg)
+                OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 14.dp)
+                            .cardRiseEntrance(),
+                    ) {
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                    }
-                    if (uiState.errorMessage != null) {
-                        InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                    }
 
-                    if (uiState.isLoading) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().height(320.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator(color = OrbitColors.violet600)
+                        if (!uiState.isOnline) {
+                            InlineBanner(text = "You're offline. Check-in/out needs a connection.", color = OrbitColors.warningDark, background = OrbitColors.warningBg)
+                            Spacer(modifier = Modifier.height(OrbitSpacing.md))
                         }
-                    } else {
-                        PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                        CheckInOutMiniCards(uiState)
-                        Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                        PunchTimeActionRow(
-                            icon = "✎",
-                            iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
-                            iconColor = OrbitColors.violet600,
-                            label = "Edit time",
-                            labelColor = OrbitColors.ink900,
-                            trailingText = if (uiState.checkInAt != null) {
-                                "${AttendanceTimeFormat.clockTime(uiState.checkInAt)} – " +
-                                    (uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "now")
-                            } else {
-                                null
-                            },
-                            enabled = uiState.checkInAt != null,
-                            onClick = { showEditTimeDialog = true },
-                        )
-                        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
-                        PunchTimeActionRow(
-                            icon = "+",
-                            iconBackground = OrbitColors.mist,
-                            iconColor = OrbitColors.slate500,
-                            label = "Add past attendance",
-                            labelColor = OrbitColors.slate500,
-                            trailingText = null,
-                            onClick = { showPastDatePicker = true },
-                        )
-                    }
+                        if (uiState.errorMessage != null) {
+                            InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                            Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                        }
 
-                    Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
+                        if (uiState.isLoading) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().height(320.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                CircularProgressIndicator(color = OrbitColors.violet600)
+                            }
+                        } else {
+                            PunchHeroCard(uiState, onCheckInClick, onCheckOutClick)
+                            Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                            CheckInOutMiniCards(uiState)
+                            Spacer(modifier = Modifier.height(OrbitSpacing.md))
+                            PunchTimeActionRow(
+                                icon = "✎",
+                                iconBackground = OrbitColors.violet600.copy(alpha = 0.12f),
+                                iconColor = OrbitColors.violet600,
+                                label = "Edit time",
+                                labelColor = OrbitColors.ink900,
+                                trailingText = if (uiState.checkInAt != null) {
+                                    "${AttendanceTimeFormat.clockTime(uiState.checkInAt)} – " +
+                                        (uiState.checkOutAt?.let { AttendanceTimeFormat.clockTime(it) } ?: "now")
+                                } else {
+                                    null
+                                },
+                                enabled = uiState.checkInAt != null,
+                                onClick = { showEditTimeDialog = true },
+                            )
+                            Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                            PunchTimeActionRow(
+                                icon = "+",
+                                iconBackground = OrbitColors.mist,
+                                iconColor = OrbitColors.slate500,
+                                label = "Add past attendance",
+                                labelColor = OrbitColors.slate500,
+                                trailingText = null,
+                                onClick = {
+                                    pastAttendanceDate = AttendanceTimeFormat.today().minusDays(1)
+                                    showAddPastModal = true
+                                },
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
+                    }
                 }
             }
         }
 
         if (showEditTimeDialog && uiState.checkInAt != null) {
             val zone = ZoneId.systemDefault()
-            TimeRangeDialog(
-                title = "Edit today's time",
-                initialCheckIn = uiState.checkInAt.atZone(zone).toLocalTime(),
-                initialCheckOut = (uiState.checkOutAt ?: Instant.now()).atZone(zone).toLocalTime(),
-                confirmLabel = "Save",
-                onConfirm = { checkIn, checkOut, location ->
-                    onEditTime(checkIn, checkOut, location)
-                    showEditTimeDialog = false
-                },
-                onDismiss = { showEditTimeDialog = false },
-            )
-        }
-
-        if (showPastDatePicker) {
-            PastDatePickerDialog(
-                onDateSelected = { date ->
-                    showPastDatePicker = false
-                    pastAttendanceDate = date
-                },
-                onDismiss = { showPastDatePicker = false },
-            )
+            ModalScrim(onDismiss = { showEditTimeDialog = false }) {
+                EditTimeModal(
+                    initialCheckIn = uiState.checkInAt.atZone(zone).toLocalTime(),
+                    initialCheckOut = (uiState.checkOutAt ?: Instant.now()).atZone(zone).toLocalTime(),
+                    onConfirm = { checkIn, checkOut, location ->
+                        onEditTime(checkIn, checkOut, location)
+                        showEditTimeDialog = false
+                    },
+                    onDismiss = { showEditTimeDialog = false },
+                )
+            }
         }
 
         val selectedPastDate = pastAttendanceDate
-        if (selectedPastDate != null) {
-            TimeRangeDialog(
-                title = "Add attendance for ${AttendanceTimeFormat.dayLabel(selectedPastDate)}",
-                initialCheckIn = LocalTime.of(9, 0),
-                initialCheckOut = LocalTime.of(17, 30),
-                confirmLabel = "Add",
-                onConfirm = { checkIn, checkOut, location ->
-                    onAddPastAttendance(selectedPastDate, checkIn, checkOut, location)
-                    pastAttendanceDate = null
-                },
-                onDismiss = { pastAttendanceDate = null },
-            )
+        if (showAddPastModal && selectedPastDate != null) {
+            ModalScrim(onDismiss = { showAddPastModal = false }) {
+                AddPastAttendanceModal(
+                    initialDate = selectedPastDate,
+                    onConfirm = { date, checkIn, checkOut, location ->
+                        onAddPastAttendance(date, checkIn, checkOut, location)
+                        showAddPastModal = false
+                    },
+                    onDismiss = { showAddPastModal = false },
+                )
+            }
+        }
+
+        PunchSuccessOverlay(kind = uiState.successMessage)
+    }
+
+    LaunchedEffect(uiState.successMessage) {
+        if (uiState.successMessage != null) {
+            delay(1100)
+            onSuccessMessageConsumed()
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Full-screen dark scrim behind a modal card — the blur applied to the real screen content
+ * behind it (see [PunchContent]'s conditional Modifier.blur) rather than to this layer, since
+ * blurring a solid-color box does nothing. Tapping the scrim dismisses, tapping the card itself
+ * does not (consumed by the card's own background clickable-free surface). */
 @Composable
-private fun TimeRangeDialog(
-    title: String,
-    initialCheckIn: LocalTime,
-    initialCheckOut: LocalTime,
-    confirmLabel: String,
-    onConfirm: (LocalTime, LocalTime, AttendanceLocation?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val checkInState = rememberTimePickerState(initialHour = initialCheckIn.hour, initialMinute = initialCheckIn.minute, is24Hour = false)
-    val checkOutState = rememberTimePickerState(initialHour = initialCheckOut.hour, initialMinute = initialCheckOut.minute, is24Hour = false)
-    var location by remember { mutableStateOf<AttendanceLocation?>(null) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = title, style = OrbitTypography.titleMedium) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
-                Text(text = "Check in", style = OrbitTypography.label, color = OrbitColors.slate500)
-                TimeInput(state = checkInState)
-                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-                Text(text = "Check out", style = OrbitTypography.label, color = OrbitColors.slate500)
-                TimeInput(state = checkOutState)
-                Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-                Text(text = "Location", style = OrbitTypography.label, color = OrbitColors.slate500)
-                Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-                LocationSelector(selected = location, onSelected = { location = it })
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onConfirm(
-                    LocalTime.of(checkInState.hour, checkInState.minute),
-                    LocalTime.of(checkOutState.hour, checkOutState.minute),
-                    location,
-                )
-            }) { Text(confirmLabel) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
-    )
-}
-
-@Composable
-private fun LocationSelector(selected: AttendanceLocation?, onSelected: (AttendanceLocation) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.xs)) {
-        AttendanceLocation.entries.forEach { location ->
-            val isSelected = location == selected
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(OrbitShapes.small)
-                    .background(if (isSelected) OrbitColors.violet600 else OrbitColors.mist)
-                    .clickable { onSelected(location) }
-                    .padding(vertical = OrbitSpacing.xs, horizontal = OrbitSpacing.xxs),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = location.label,
-                    style = OrbitTypography.bodySmall,
-                    color = if (isSelected) OrbitColors.cream50 else OrbitColors.slate600,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PastDatePickerDialog(
-    onDateSelected: (LocalDate) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val todayMillis = remember {
-        AttendanceTimeFormat.today().atStartOfDay(ZoneId.of("UTC")).toInstant().toEpochMilli()
-    }
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = todayMillis,
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis < todayMillis
-        },
-    )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                val millis = state.selectedDateMillis
-                if (millis != null) {
-                    onDateSelected(Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate())
-                }
-            }) { Text("Next") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        },
+private fun ModalScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0E0918).copy(alpha = 0.42f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
+            .padding(22.dp),
+        contentAlignment = Alignment.Center,
     ) {
-        DatePicker(state = state)
+        Box(modifier = Modifier.clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}) {
+            content()
+        }
     }
 }
 
