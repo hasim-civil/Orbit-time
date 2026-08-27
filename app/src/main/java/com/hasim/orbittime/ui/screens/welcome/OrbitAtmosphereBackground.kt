@@ -3,12 +3,12 @@ package com.hasim.orbittime.ui.screens.welcome
 import android.graphics.RadialGradient
 import android.graphics.Shader
 import android.graphics.Paint as NativePaint
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.DurationBasedAnimationSpec
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,187 +23,191 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.hasim.orbittime.ui.theme.OrbitColors
-import com.hasim.orbittime.ui.theme.OrbitMotion
-import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.sin
+import kotlin.math.roundToInt
 
 /**
- * One drifting glow blob, specified entirely in fractions of the screen's own size rather
- * than fixed dp — a fixed 20-40dp drift on a 350dp-wide blob is proportionally tiny and reads
- * as "not moving" even though it technically is; a fraction of screen size guarantees a
- * visually obvious traversal on any device.
+ * One drifting glow blob, ported directly from the reference design's four `driftA`..`driftD`
+ * / `cloudPulse` CSS keyframe animations rather than an invented motion curve. Each blob:
+ * - anchors at a fixed screen-relative point ([anchorXFraction], [anchorYFraction]);
+ * - wanders through the same four-point path its reference counterpart does — [driftXStops] /
+ *   [driftYStops] are fractions of the blob's OWN diameter (matching CSS's percentage-of-own-box
+ *   semantics), not the screen's, and [scaleStops] breathes its size in and out at those same
+ *   four points — on its own [driftPeriodMs];
+ * - independently pulses opacity between the reference's fixed 0.5 / 0.95 / 0.72 stops on its
+ *   own, shorter [pulsePeriodMs] — decoupled from the drift period, exactly as the reference
+ *   pairs e.g. `driftA 11s` with `cloudPulse 7s` on the same element.
  */
 private data class AtmosphereGlow(
     val color: Color,
-    val radiusFraction: Float,
+    val baseAlpha: Float,
     val anchorXFraction: Float,
     val anchorYFraction: Float,
-    val driftXFraction: Float,
-    val driftYFraction: Float,
-    val cyclePhaseDegrees: Float,
-    val periodMs: Int,
-    val morphPeriodMs: Int,
-    val alpha: Float,
+    val radiusFraction: Float,
+    val driftXStops: FloatArray,
+    val driftYStops: FloatArray,
+    val scaleStops: FloatArray,
+    val driftPeriodMs: Int,
+    val pulsePeriodMs: Int,
 )
 
-/** The X and Y drift phases run at different, non-integer-ratio periods, so each blob traces
- * its own slow Lissajous-like wander at its own speed — no two blobs move in sync or trace
- * the same path. */
-private class GlowAnimState(val phaseX: State<Float>, val phaseY: State<Float>, val morph: State<Float>)
+private class GlowAnimState(
+    val driftX: State<Float>,
+    val driftY: State<Float>,
+    val scale: State<Float>,
+    val pulse: State<Float>,
+)
 
 /** Gradient stop positions never change frame to frame, only the colors at each stop do. */
 private val GlowGradientStops = floatArrayOf(0f, 0.45f, 0.75f, 1f)
 
+// Anchors, sizes and colors measured from the reference's own four blobs (in-frame version):
+// top:-110px left:-90px 340px orange; top:180px right:-110px 320px purple; bottom:-90px
+// left:-40px 300px blue; bottom:190px right:20px 220px orange-red — all against its 402x874
+// frame, converted here to screen-fraction anchors and short-side-fraction radii.
 private val glows = listOf(
-    // Warm coral/orange-pink glow, upper-left.
     AtmosphereGlow(
-        color = OrbitColors.coral500,
-        radiusFraction = 0.46f,
-        anchorXFraction = 0.10f,
-        anchorYFraction = 0.16f,
-        driftXFraction = 0.20f,
-        driftYFraction = 0.16f,
-        cyclePhaseDegrees = 0f,
-        periodMs = OrbitMotion.ATMOSPHERE_DRIFT,
-        morphPeriodMs = OrbitMotion.ATMOSPHERE_MORPH,
-        alpha = 0.44f,
+        color = Color(0xFFFF8C42),
+        baseAlpha = 0.55f,
+        anchorXFraction = 0.20f,
+        anchorYFraction = 0.08f,
+        radiusFraction = 0.42f,
+        driftXStops = floatArrayOf(0f, 0.34f, 0.12f, -0.26f),
+        driftYStops = floatArrayOf(0f, 0.18f, 0.38f, 0.16f),
+        scaleStops = floatArrayOf(1f, 1.22f, 0.9f, 1.14f),
+        driftPeriodMs = 11_000,
+        pulsePeriodMs = 7_000,
     ),
-    // Violet glow, upper-right.
     AtmosphereGlow(
-        color = OrbitColors.violet600,
-        radiusFraction = 0.52f,
+        color = Color(0xFF8430FF),
+        baseAlpha = 0.5f,
         anchorXFraction = 0.88f,
-        anchorYFraction = 0.14f,
-        driftXFraction = 0.22f,
-        driftYFraction = 0.18f,
-        cyclePhaseDegrees = 80f,
-        periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.3f).toInt(),
-        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.4f).toInt(),
-        alpha = 0.40f,
-    ),
-    // Cool blue glow, left / mid.
-    AtmosphereGlow(
-        color = OrbitColors.blue500,
-        radiusFraction = 0.44f,
-        anchorXFraction = 0.06f,
-        anchorYFraction = 0.55f,
-        driftXFraction = 0.18f,
-        driftYFraction = 0.22f,
-        cyclePhaseDegrees = 165f,
-        periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 0.8f).toInt(),
-        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 0.75f).toInt(),
-        alpha = 0.34f,
-    ),
-    // Cyan glow, lower-right.
-    AtmosphereGlow(
-        color = OrbitColors.cyan400,
+        anchorYFraction = 0.39f,
         radiusFraction = 0.40f,
-        anchorXFraction = 0.86f,
-        anchorYFraction = 0.86f,
-        driftXFraction = 0.20f,
-        driftYFraction = 0.17f,
-        cyclePhaseDegrees = 250f,
-        periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 1.05f).toInt(),
-        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.2f).toInt(),
-        alpha = 0.36f,
+        driftXStops = floatArrayOf(0f, -0.32f, -0.08f, 0.28f),
+        driftYStops = floatArrayOf(0f, -0.20f, -0.38f, -0.12f),
+        scaleStops = floatArrayOf(1.05f, 0.88f, 1.2f, 0.96f),
+        driftPeriodMs = 13_000,
+        pulsePeriodMs = 9_000,
     ),
-    // Second, cooler purple glow, lower-left / centre — fills out the "4-6 blobs" look and
-    // keeps the middle of the screen from ever looking empty as the others drift away from it.
     AtmosphereGlow(
-        color = OrbitColors.purple500,
-        radiusFraction = 0.38f,
-        anchorXFraction = 0.30f,
-        anchorYFraction = 0.92f,
-        driftXFraction = 0.24f,
-        driftYFraction = 0.15f,
-        cyclePhaseDegrees = 310f,
-        periodMs = (OrbitMotion.ATMOSPHERE_DRIFT * 0.9f).toInt(),
-        morphPeriodMs = (OrbitMotion.ATMOSPHERE_MORPH * 1.6f).toInt(),
-        alpha = 0.32f,
+        color = Color(0xFF3068FF),
+        baseAlpha = 0.42f,
+        anchorXFraction = 0.27f,
+        anchorYFraction = 0.93f,
+        radiusFraction = 0.37f,
+        driftXStops = floatArrayOf(0f, -0.30f, 0.20f, 0.34f),
+        driftYStops = floatArrayOf(0f, 0.22f, -0.26f, 0.10f),
+        scaleStops = floatArrayOf(1f, 1.2f, 0.88f, 1.1f),
+        driftPeriodMs = 15_000,
+        pulsePeriodMs = 11_000,
+    ),
+    AtmosphereGlow(
+        color = Color(0xFFFF6642),
+        baseAlpha = 0.38f,
+        anchorXFraction = 0.68f,
+        anchorYFraction = 0.66f,
+        radiusFraction = 0.27f,
+        driftXStops = floatArrayOf(0f, 0.30f, -0.16f, -0.32f),
+        driftYStops = floatArrayOf(0f, -0.24f, -0.34f, 0.14f),
+        scaleStops = floatArrayOf(1.08f, 0.9f, 1.24f, 0.98f),
+        driftPeriodMs = 12_000,
+        pulsePeriodMs = 8_000,
     ),
 )
 
+/** Reproduces one `driftA`..`driftD`-style keyframe curve: four stops at 0/25/50/75% of
+ * [periodMs], looping back to the first stop at 100% so consecutive cycles never jump. */
+private fun driftKeyframes(periodMs: Int, stops: FloatArray): DurationBasedAnimationSpec<Float> = keyframes {
+    durationMillis = periodMs
+    stops[0] at 0
+    stops[1] at (periodMs * 0.25f).roundToInt()
+    stops[2] at (periodMs * 0.5f).roundToInt()
+    stops[3] at (periodMs * 0.75f).roundToInt()
+    stops[0] at periodMs
+}
+
+/** Reproduces the reference's single shared `cloudPulse` opacity curve (0%/35%/65%/100% ->
+ * 0.5/0.95/0.72/0.5), just run on each blob's own [periodMs]. */
+private fun pulseKeyframes(periodMs: Int): DurationBasedAnimationSpec<Float> = keyframes {
+    durationMillis = periodMs
+    0.5f at 0
+    0.95f at (periodMs * 0.35f).roundToInt()
+    0.72f at (periodMs * 0.65f).roundToInt()
+    0.5f at periodMs
+}
+
 /**
- * The living Orbit Time atmosphere: a soft cream base wash with slow, obviously-drifting
- * blue, violet/purple, coral (orange-pink) and cyan glow blobs behind the foreground content.
+ * The living Orbit Time atmosphere behind every screen: a soft cream wash with four large,
+ * independently-drifting glow blobs (orange, purple, blue, orange-red) ported directly from the
+ * reference design's `driftA`..`driftD` + `cloudPulse` keyframe animations — same colors, same
+ * anchors, same four-point wander-and-breathe path and independent opacity pulse, each on its
+ * own reference-matched period, rather than an invented motion curve.
  *
- * This is a full rewrite, not a patch of the previous version — that version animated
- * correctly in principle but was invisible in practice for two separate reasons, both fixed
- * here:
- *
- * 1. It used [androidx.compose.ui.draw.blur], which is backed by `RenderEffect` — an API that
- *    only exists from Android 12 (API 31) onward. This app's minSdk is 26, so on any older
- *    device that call silently does nothing: no exception, no blur, just a sharp-edged circle.
- *    `BlurMaskFilter` (the classic `android.graphics.Paint` blur) was **not** used to replace
- *    it either, for the same underlying reason: it is explicitly documented as unsupported on
- *    a hardware-accelerated canvas, which is how Compose draws by default on every version of
- *    Android — using it here would silently reproduce the exact same "looks static" bug through
- *    a different API. Forcing the whole window into software rendering to make it work would be
- *    an app-wide, performance-costly change for a decorative background, so instead this draws
- *    each blob through [drawIntoCanvas] onto the platform [android.graphics.Canvas] with a
- *    native [android.graphics.Paint] whose shader is a real [RadialGradient] fading to fully
- *    transparent — a soft glow with no blur API involved at all, so nothing here can silently
- *    no-op on any supported device.
- *
- * 2. Even where the old animation genuinely ran, its drift was only tens of dp against
- *    room-filling 300-400dp blobs — technically moving, imperceptibly so. Every blob here
- *    drifts by a fraction of the screen's own size (see [AtmosphereGlow.driftXFraction]),
- *    which guarantees a visually obvious traversal regardless of device size, plus a much
- *    wider breathing scale range.
+ * Rendering stays on the same proven approach as before this pass (this implementation was
+ * already confirmed visibly animating on a real device, so it's refined here, not replaced):
+ * each blob draws through [drawIntoCanvas] onto the platform [android.graphics.Canvas] with a
+ * native [android.graphics.Paint] whose shader is a real [RadialGradient] fading to fully
+ * transparent. [androidx.compose.ui.draw.blur] is never used — it's backed by `RenderEffect`,
+ * only available from API 31, and this app's minSdk is 26; `BlurMaskFilter` is skipped for the
+ * same reason (unsupported on Compose's default hardware-accelerated canvas). A soft-edged
+ * radial gradient reads as a blurred glow with neither API involved, so nothing here can
+ * silently no-op on any supported device.
  *
  * All motion is read from `State.value` inside the [Canvas] draw lambda (not via `by` in the
  * composable body), so every frame updates the draw phase only — no recomposition, no layout
- * pass. This composable's own size/position in the layout tree, and every call site's usage of
- * it, are unchanged from before; only how the glow itself is rendered changed.
+ * pass, no extra battery cost beyond the draw itself.
  */
 @Composable
 fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
     val infinite = rememberInfiniteTransition(label = "atmosphere")
 
     val motions = glows.map { glow ->
-        val phaseX = infinite.animateFloat(
-            initialValue = glow.cyclePhaseDegrees,
-            targetValue = glow.cyclePhaseDegrees + 360f,
+        val driftX = infinite.animateFloat(
+            initialValue = glow.driftXStops[0],
+            targetValue = glow.driftXStops[0],
             animationSpec = infiniteRepeatable(
-                animation = tween(glow.periodMs, easing = LinearEasing),
+                animation = driftKeyframes(glow.driftPeriodMs, glow.driftXStops),
                 repeatMode = RepeatMode.Restart,
             ),
-            label = "glowPhaseX",
+            label = "glowDriftX",
         )
-        val phaseY = infinite.animateFloat(
-            initialValue = glow.cyclePhaseDegrees,
-            targetValue = glow.cyclePhaseDegrees + 360f,
+        val driftY = infinite.animateFloat(
+            initialValue = glow.driftYStops[0],
+            targetValue = glow.driftYStops[0],
             animationSpec = infiniteRepeatable(
-                // A non-integer multiple of periodMs decouples the Y drift from the X drift,
-                // so the combined path is a slow Lissajous wander, not a simple circle.
-                animation = tween((glow.periodMs * 1.63f).toInt(), easing = LinearEasing),
+                animation = driftKeyframes(glow.driftPeriodMs, glow.driftYStops),
                 repeatMode = RepeatMode.Restart,
             ),
-            label = "glowPhaseY",
+            label = "glowDriftY",
         )
-        val morph = infinite.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
+        val scale = infinite.animateFloat(
+            initialValue = glow.scaleStops[0],
+            targetValue = glow.scaleStops[0],
             animationSpec = infiniteRepeatable(
-                animation = tween(glow.morphPeriodMs, easing = OrbitMotion.gentle),
-                repeatMode = RepeatMode.Reverse,
+                animation = driftKeyframes(glow.driftPeriodMs, glow.scaleStops),
+                repeatMode = RepeatMode.Restart,
             ),
-            label = "glowMorph",
+            label = "glowScale",
         )
-        GlowAnimState(phaseX, phaseY, morph)
+        val pulse = infinite.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 0.5f,
+            animationSpec = infiniteRepeatable(
+                animation = pulseKeyframes(glow.pulsePeriodMs),
+                repeatMode = RepeatMode.Restart,
+            ),
+            label = "glowPulse",
+        )
+        GlowAnimState(driftX, driftY, scale, pulse)
     }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        OrbitColors.cream100,
-                        OrbitColors.sand50,
-                        OrbitColors.lilacWhite,
-                    ),
+                Brush.radialGradient(
+                    colors = listOf(OrbitColors.cream100, OrbitColors.sand50, OrbitColors.lilacWhite),
                 ),
             ),
     ) {
@@ -223,16 +227,13 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
                     val motion = motions[index]
                     val anchorXPx = widthPx * glow.anchorXFraction
                     val anchorYPx = heightPx * glow.anchorYFraction
-                    val driftXPx = widthPx * glow.driftXFraction
-                    val driftYPx = heightPx * glow.driftYFraction
                     val baseRadiusPx = shortSidePx * glow.radiusFraction
+                    val diameterPx = baseRadiusPx * 2f
 
-                    val radiansX = Math.toRadians(motion.phaseX.value.toDouble())
-                    val radiansY = Math.toRadians(motion.phaseY.value.toDouble())
-                    val centerX = anchorXPx + driftXPx * cos(radiansX).toFloat()
-                    val centerY = anchorYPx + driftYPx * sin(radiansY).toFloat()
-                    val radius = baseRadiusPx * (0.75f + motion.morph.value * 0.4f)
-                    val alpha = glow.alpha * (0.78f + motion.morph.value * 0.22f)
+                    val centerX = anchorXPx + diameterPx * motion.driftX.value
+                    val centerY = anchorYPx + diameterPx * motion.driftY.value
+                    val radius = (baseRadiusPx * motion.scale.value).coerceAtLeast(1f)
+                    val alpha = (glow.baseAlpha * motion.pulse.value).coerceIn(0f, 1f)
 
                     val opaque = glow.color.copy(alpha = alpha).toArgb()
                     val mid = glow.color.copy(alpha = alpha * 0.45f).toArgb()
@@ -243,7 +244,7 @@ fun OrbitAtmosphereBackground(modifier: Modifier = Modifier) {
                         shader = RadialGradient(
                             centerX,
                             centerY,
-                            radius.coerceAtLeast(1f),
+                            radius,
                             intArrayOf(opaque, mid, fade, clear),
                             GlowGradientStops,
                             Shader.TileMode.CLAMP,

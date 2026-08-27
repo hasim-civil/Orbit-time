@@ -11,15 +11,13 @@ object OrbitMotion {
     const val SLOW = 500
     const val SCREEN_ENTER = 600
 
-    /** One full lap of the satellite travelling the (fixed) orbit path / drifting atmosphere. */
+    /** One full lap of the satellite travelling the (fixed) orbit path. */
     const val ORBIT_MOON = 12_000
-    const val ATMOSPHERE_DRIFT = 7_000
 
-    /** Subtle idle "alive" motion on the orbit sphere and background glows. */
+    /** Subtle idle "alive" motion on the orbit sphere. */
     const val ORBIT_FLOAT = 7_000
     const val ORBIT_BREATHE = 5_200
     const val ORBIT_HIGHLIGHT_PULSE = 6_400
-    const val ATMOSPHERE_MORPH = 3_500
 
     /** Staggered Welcome-screen entrance: background, then logo, then copy, then buttons. */
     const val ENTRANCE_BACKGROUND_DELAY = 0
