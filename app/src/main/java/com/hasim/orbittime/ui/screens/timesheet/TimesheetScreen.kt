@@ -1,5 +1,8 @@
 package com.hasim.orbittime.ui.screens.timesheet
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -43,6 +47,7 @@ import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
+import com.hasim.orbittime.ui.components.cardRiseEntrance
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
@@ -117,7 +122,8 @@ fun TimesheetContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = TimesheetHorizontalMargin),
+                        .padding(horizontal = TimesheetHorizontalMargin)
+                        .cardRiseEntrance(),
                 ) {
                     if (uiState.errorMessage != null) {
                         InlineBanner(text = uiState.errorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
@@ -343,6 +349,11 @@ private fun DailyHistoryRow(day: TimesheetDay) {
     }
 
     val progress = duration?.let { (it.toMinutes().toFloat() / STANDARD_SHIFT.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
+    // The reference's "barGrow": each row's progress bar grows in from empty when it first appears.
+    val animatedProgress = remember { Animatable(0f) }
+    LaunchedEffect(progress) {
+        animatedProgress.animateTo(progress, tween(700, easing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)))
+    }
 
     Row(modifier = Modifier.fillMaxWidth().height(62.dp), verticalAlignment = Alignment.CenterVertically) {
         DateBadge(day = day, color = statusColor)
@@ -358,10 +369,10 @@ private fun DailyHistoryRow(day: TimesheetDay) {
                     .height(4.dp)
                     .background(OrbitColors.fog, RoundedCornerShape(2.dp)),
             ) {
-                if (progress > 0f) {
+                if (animatedProgress.value > 0f) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(progress)
+                            .fillMaxWidth(animatedProgress.value)
                             .height(4.dp)
                             .background(statusColor, RoundedCornerShape(2.dp)),
                     )

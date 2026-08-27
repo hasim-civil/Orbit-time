@@ -1,5 +1,11 @@
 package com.hasim.orbittime.ui.screens.home
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -37,6 +44,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -46,6 +54,7 @@ import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
+import com.hasim.orbittime.ui.components.cardRiseEntrance
 import com.hasim.orbittime.ui.screens.punch.AttendanceViewModel
 import com.hasim.orbittime.ui.screens.punch.PunchUiState
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
@@ -57,6 +66,8 @@ import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import java.time.Instant
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun HomeDashboardScreen(
@@ -102,7 +113,8 @@ fun HomeDashboardContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = OrbitSpacing.screenHorizontal),
+                        .padding(horizontal = OrbitSpacing.screenHorizontal)
+                        .cardRiseEntrance(),
                 ) {
                     if (uiState.isLoading) {
                         LoadingBox(height = 200.dp)
@@ -202,7 +214,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
                 .background(statusColor.copy(alpha = 0.12f), CircleShape)
                 .padding(horizontal = OrbitSpacing.md, vertical = OrbitSpacing.xs),
         ) {
-            Box(modifier = Modifier.size(6.dp).background(statusColor, CircleShape))
+            BreathingStatusDot(color = statusColor)
             Spacer(modifier = Modifier.width(OrbitSpacing.xs))
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
@@ -228,6 +240,28 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             )
         }
     }
+}
+
+/** The reference's "dotBreathe": a small status dot that gently scales and dims, 3.6s ease-in-out infinite. */
+@Composable
+private fun BreathingStatusDot(color: Color) {
+    val infiniteTransition = rememberInfiniteTransition(label = "dotBreathe")
+    val t by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(1800, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "dotBreatheT",
+    )
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .graphicsLayer {
+                scaleX = 1f + t * 0.4f
+                scaleY = 1f + t * 0.4f
+                alpha = 1f - t * 0.5f
+            }
+            .background(color, CircleShape),
+    )
 }
 
 @Composable
@@ -310,7 +344,48 @@ private fun AttendanceRing(
     modifier: Modifier = Modifier,
     diameter: Dp = 128.dp,
 ) {
+    // The reference's "orbitSpin" (22s, outer conic glow), "ringBreath" (5.5s arc breathe),
+    // and the small comet dot that continuously circles the ring independent of the data value.
+    val infiniteTransition = rememberInfiniteTransition(label = "attendanceRing")
+    val glowRotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(22000, easing = LinearEasing)),
+        label = "glowRotation",
+    )
+    val breathe by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(animation = tween(2750, easing = LinearEasing), repeatMode = RepeatMode.Reverse),
+        label = "ringBreathe",
+    )
+    val cometAngle by infiniteTransition.animateFloat(
+        initialValue = -90f,
+        targetValue = 270f,
+        animationSpec = infiniteRepeatable(animation = tween(9000, easing = LinearEasing)),
+        label = "cometAngle",
+    )
+
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(diameter + 24.dp)
+                .graphicsLayer { rotationZ = glowRotation }
+                .blur(10.dp)
+                .background(
+                    brush = Brush.sweepGradient(
+                        colors = listOf(
+                            OrbitColors.purple600.copy(alpha = 0.34f),
+                            Color.Transparent,
+                            Color.Transparent,
+                            OrbitColors.coral500.copy(alpha = 0.3f),
+                            OrbitColors.purple600.copy(alpha = 0.34f),
+                        ),
+                    ),
+                    shape = CircleShape,
+                ),
+        )
+
         Canvas(modifier = Modifier.size(diameter)) {
             val strokeWidth = size.minDimension * 0.11f
             val radius = (size.minDimension - strokeWidth) / 2f
@@ -338,8 +413,16 @@ private fun AttendanceRing(
                     topLeft = topLeft,
                     size = arcSize,
                     style = Stroke(width = strokeWidth, cap = StrokeCap.Round),
+                    alpha = 0.9f + breathe * 0.1f,
                 )
             }
+
+            val cometRad = Math.toRadians(cometAngle.toDouble())
+            val cometCenter = Offset(
+                center.x + (radius * cos(cometRad)).toFloat(),
+                center.y + (radius * sin(cometRad)).toFloat(),
+            )
+            drawCircle(color = Color.White.copy(alpha = 0.85f), radius = strokeWidth * 0.32f, center = cometCenter)
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
