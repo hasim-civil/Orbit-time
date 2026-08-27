@@ -40,9 +40,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.ui.components.InlineBanner
@@ -54,6 +57,7 @@ import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
 import com.hasim.orbittime.ui.components.cardRiseEntrance
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
+import com.hasim.orbittime.ui.theme.InstrumentSerif
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
@@ -67,6 +71,10 @@ import java.time.ZoneId
 
 /** Reference progress denominator for the elapsed ring — no shift-schedule model exists yet. */
 private val STANDARD_SHIFT = Duration.ofMinutes((8.5 * 60).toLong())
+
+/** The reference renders the Checked In/Out mini-card values in the editorial serif, not
+ * Manrope — matches the "elegant serif for headline moments" contrast used throughout. */
+private val MiniStatValueStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 27.sp, lineHeight = 27.sp)
 
 @Composable
 fun PunchScreen(
@@ -440,7 +448,7 @@ private fun MiniStatCard(label: String, value: String, modifier: Modifier = Modi
     ) {
         Text(text = label, style = OrbitTypography.label, color = OrbitColors.slate300)
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-        Text(text = value, style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
+        Text(text = value, style = MiniStatValueStyle, color = OrbitColors.cream50)
     }
 }
 

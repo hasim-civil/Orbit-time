@@ -47,6 +47,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -61,6 +63,7 @@ import com.hasim.orbittime.ui.components.cardRiseEntrance
 import com.hasim.orbittime.ui.screens.punch.AttendanceViewModel
 import com.hasim.orbittime.ui.screens.punch.PunchUiState
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
+import com.hasim.orbittime.ui.theme.InstrumentSerif
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
@@ -79,6 +82,16 @@ private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
  * token, which auth screens still rely on. */
 private val DashboardHorizontalMargin = 14.dp
 private val DashboardSectionGap = 13.dp
+
+// Text styles below are measured directly from the reference's inline styles for this screen —
+// the reference contrasts an editorial serif for headline moments (greeting, clock, month
+// label, the two big ring numbers) against Manrope for everything else, which the shared
+// OrbitTypography scale doesn't capture for these specific spots (it uses Manrope for them).
+private val GreetingHeadlineStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Bold, fontSize = 23.sp, lineHeight = 26.sp, letterSpacing = (-0.3).sp)
+private val ClockTimeStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 23.sp, lineHeight = 23.sp)
+private val MonthHeadingStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 22.sp, lineHeight = 24.sp)
+private val RingBigNumberStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 26.sp, lineHeight = 26.sp)
+private val RingCaptionStyle = OrbitTypography.label.copy(fontWeight = FontWeight.Normal, fontSize = 8.sp, letterSpacing = 0.5.sp)
 
 @Composable
 fun HomeDashboardScreen(
@@ -193,7 +206,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "${AttendanceTimeFormat.greeting()}${if (userDisplayName.isBlank()) "" else ", $userDisplayName"}",
-                    style = OrbitTypography.titleLarge,
+                    style = GreetingHeadlineStyle,
                     color = OrbitColors.ink900,
                 )
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
@@ -205,7 +218,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             }
             Text(
                 text = AttendanceTimeFormat.clockTime(Instant.now()),
-                style = OrbitTypography.bodyMedium,
+                style = ClockTimeStyle,
                 color = OrbitColors.ink900,
             )
         }
@@ -328,7 +341,7 @@ private fun MonthlyAttendanceCard(
                     color = OrbitColors.slate300,
                 )
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-                Text(text = summary.rangeLabel, style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
+                Text(text = summary.rangeLabel, style = MonthHeadingStyle, color = OrbitColors.cream50)
             }
             RangeModeToggle(selected = rangeMode, onSelected = onRangeModeSelected)
         }
@@ -341,7 +354,7 @@ private fun MonthlyAttendanceCard(
             Spacer(modifier = Modifier.width(OrbitSpacing.lg))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = "${summary.attendanceRatePercent}%", style = OrbitTypography.displayMedium, color = OrbitColors.cream50)
+                Text(text = "${summary.attendanceRatePercent}%", style = RingBigNumberStyle, color = OrbitColors.cream50)
                 Text(text = "attendance rate", style = OrbitTypography.bodyMedium, color = OrbitColors.slate300)
                 Spacer(modifier = Modifier.height(OrbitSpacing.xs))
                 LegendRow(color = OrbitColors.success, text = "${summary.presentDays} present")
@@ -447,10 +460,10 @@ private fun AttendanceRing(
             modifier = Modifier.width(diameter * 0.62f),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(text = presentDays.toString(), style = OrbitTypography.titleLarge, color = OrbitColors.cream50)
+            Text(text = presentDays.toString(), style = RingBigNumberStyle, color = OrbitColors.cream50)
             Text(
                 text = "DAYS PRESENT",
-                style = OrbitTypography.label,
+                style = RingCaptionStyle,
                 color = OrbitColors.slate300,
                 textAlign = TextAlign.Center,
             )
