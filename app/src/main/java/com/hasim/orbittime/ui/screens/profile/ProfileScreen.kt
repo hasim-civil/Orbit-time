@@ -84,7 +84,6 @@ private val NameStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = Fon
 private val SubtitleStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 12.sp)
 private val RowLabelStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
 private val RowHintStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 11.5.sp)
-private val DetailValueStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
 private val SignOutStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
 private val FooterCreditStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 17.sp)
 private val FooterVersionStyle = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Normal, fontSize = 10.sp, letterSpacing = 1.sp)
@@ -204,8 +203,6 @@ fun ProfileContent(
                         onClick = onAddLeaveClick,
                     )
 
-                    ProfileValuesGrid(uiState)
-
                     SignOutRow(onClick = { showSignOutConfirm = true })
 
                     FooterCredits()
@@ -289,7 +286,7 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 22.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(modifier = Modifier.size(64.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
@@ -332,16 +329,43 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = uiState.email,
-                    style = SubtitleStyle,
-                    color = OrbitColors.lavenderWhite.copy(alpha = 0.64f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                Spacer(modifier = Modifier.height(10.dp))
+                val shiftLabel = if (uiState.shiftStart != null && uiState.shiftEnd != null) {
+                    val start = formatShiftTime(uiState.shiftStart)
+                    val end = formatShiftTime(uiState.shiftEnd)
+                    if (start != null && end != null) "$start – $end" else null
+                } else {
+                    null
+                }
+                ProfileHeroValuesRow(left = uiState.email.ifBlank { "—" }, right = shiftLabel ?: "—")
+                Spacer(modifier = Modifier.height(6.dp))
+                ProfileHeroValuesRow(left = uiState.role.ifBlank { "—" }, right = uiState.company.ifBlank { "—" })
             }
         }
+    }
+}
+
+/** One row of the two values-only pairs inside the dark hero card — no "Email"/"Shift"/"Role"/
+ * "Company" labels, just the saved values themselves, light-on-dark to match the card. */
+@Composable
+private fun ProfileHeroValuesRow(left: String, right: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(
+            text = left,
+            style = SubtitleStyle,
+            color = OrbitColors.lavenderWhite.copy(alpha = 0.92f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(modifier = Modifier.width(OrbitSpacing.sm))
+        Text(
+            text = right,
+            style = SubtitleStyle,
+            color = OrbitColors.lavenderWhite.copy(alpha = 0.6f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -379,39 +403,6 @@ private fun ProfileMenuRow(
             Text(text = hint, style = RowHintStyle, color = OrbitColors.slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(text = "›", style = RowLabelStyle, color = OrbitColors.slate300)
-    }
-}
-
-/**
- * Compact values-only area replacing the old oversized "WORK DETAILS" card: just the user's own
- * saved email/shift/role/company, two per row, with no labels or heading — per the explicit
- * instruction that this occupy significantly less vertical space than a full card.
- */
-@Composable
-private fun ProfileValuesGrid(uiState: ProfileUiState) {
-    val shiftLabel = if (uiState.shiftStart != null && uiState.shiftEnd != null) {
-        val start = formatShiftTime(uiState.shiftStart)
-        val end = formatShiftTime(uiState.shiftEnd)
-        if (start != null && end != null) "$start – $end" else null
-    } else {
-        null
-    }
-
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        ProfileValuesRow(left = uiState.email.ifBlank { "—" }, right = shiftLabel ?: "—")
-        ProfileValuesRow(left = uiState.role.ifBlank { "—" }, right = uiState.company.ifBlank { "—" })
-    }
-}
-
-@Composable
-private fun ProfileValuesRow(left: String, right: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(text = left, style = DetailValueStyle, color = OrbitColors.ink900, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Spacer(modifier = Modifier.width(OrbitSpacing.md))
-        Text(text = right, style = DetailValueStyle, color = OrbitColors.slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

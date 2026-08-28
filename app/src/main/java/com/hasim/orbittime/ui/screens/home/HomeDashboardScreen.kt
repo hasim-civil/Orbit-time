@@ -608,7 +608,7 @@ private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label:
                 brush = Brush.linearGradient(
                     0f to accent.copy(alpha = 0.12f),
                     0.42f to accent.copy(alpha = 0.04f),
-                    1f to Color.White.copy(alpha = 0.72f),
+                    1f to Color.Transparent,
                 ),
                 shape = OrbitShapes.small,
             )
