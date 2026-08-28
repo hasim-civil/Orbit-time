@@ -42,9 +42,17 @@ object AttendanceStats {
         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY,
     )
 
-    /** Fallback only for a profile that hasn't loaded its own shift start yet. */
+    /** Fallback only for a profile that hasn't loaded its own shift start/end yet — matches
+     * [com.hasim.orbittime.data.user.UserProfile]'s own defaults. */
     val DEFAULT_LATE_AFTER: LocalTime = LocalTime.of(9, 0)
+    val DEFAULT_SHIFT_END: LocalTime = LocalTime.of(17, 30)
     val OVERTIME_AFTER: Duration = Duration.ofHours(8)
+
+    /** A shift's real scheduled length, handling the (rare) overnight case where end wraps past
+     * midnight before start. Used as the denominator for shift-completion progress bars instead
+     * of a hardcoded guess, so it always reflects each user's own configured shift. */
+    fun shiftDuration(shiftStart: LocalTime, shiftEnd: LocalTime): Duration =
+        Duration.between(shiftStart, shiftEnd).let { if (it.isNegative || it.isZero) it.plusHours(24) else it }
 
     fun summarize(
         records: Map<LocalDate, DailyAttendance>,

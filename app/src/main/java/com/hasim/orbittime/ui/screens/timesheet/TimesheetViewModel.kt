@@ -12,6 +12,7 @@ import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.observeIsOnline
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -29,6 +30,9 @@ data class TimesheetDay(
     val checkInAt: Instant? = null,
     val checkOutAt: Instant? = null,
     val status: AttendanceStatus? = null,
+    /** One of [com.hasim.orbittime.data.attendance.AttendanceLocation]'s names, set only via a
+     * manual edit or backfill — mirrors [com.hasim.orbittime.data.attendance.AttendanceRecord.location]. */
+    val location: String? = null,
 )
 
 data class TimesheetUiState(
@@ -39,6 +43,7 @@ data class TimesheetUiState(
     val monthLabel: String = "",
     val days: List<TimesheetDay> = emptyList(),
     val history: List<TimesheetDay> = emptyList(),
+    val shiftDuration: Duration = AttendanceStats.shiftDuration(AttendanceStats.DEFAULT_LATE_AFTER, AttendanceStats.DEFAULT_SHIFT_END),
 )
 
 class TimesheetViewModel(
@@ -60,6 +65,10 @@ class TimesheetViewModel(
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
+
+    /** Each user's own shift end, loaded from their profile — the real denominator for each
+     * day's history progress bar (was previously a hardcoded 8.5h). */
+    private var shiftEnd: LocalTime = AttendanceStats.DEFAULT_SHIFT_END
 
     init {
         val uid = authRepository.currentUser?.uid
@@ -87,9 +96,12 @@ class TimesheetViewModel(
     private fun loadShiftStart(uid: String) {
         viewModelScope.launch {
             val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
-            val parsed = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-            if (parsed != null) {
-                lateAfter = parsed
+            val parsedStart = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            val parsedEnd = profile?.shiftEnd?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            if (parsedStart != null) lateAfter = parsedStart
+            if (parsedEnd != null) shiftEnd = parsedEnd
+            if (parsedStart != null || parsedEnd != null) {
+                _uiState.update { it.copy(shiftDuration = AttendanceStats.shiftDuration(lateAfter, shiftEnd)) }
                 observeMonth(uid, _uiState.value.displayedMonth)
             }
         }
@@ -137,6 +149,7 @@ class TimesheetViewModel(
                 checkInAt = checkInAt,
                 checkOutAt = checkOutAt,
                 status = AttendanceStats.classifyDay(checkInAt, date, today, lateAfter = lateAfter, isOnLeave = date in leaveDates),
+                location = record?.location,
             )
         }
 

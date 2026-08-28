@@ -55,6 +55,7 @@ import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -62,9 +63,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-
-/** Reference progress denominator for the elapsed ring — no shift-schedule model exists yet. */
-private val STANDARD_SHIFT = Duration.ofMinutes((8.5 * 60).toLong())
 
 /** The reference renders the Checked In/Out mini-card values in the editorial serif, not
  * Manrope — matches the "elegant serif for headline moments" contrast used throughout. */
@@ -228,6 +226,8 @@ fun PunchContent(
             ModalScrim(onDismiss = { showAddPastModal = false }) {
                 AddPastAttendanceModal(
                     initialDate = selectedPastDate,
+                    defaultCheckIn = uiState.shiftStart,
+                    defaultCheckOut = uiState.shiftEnd,
                     onConfirm = { date, checkIn, checkOut, location ->
                         onAddPastAttendance(date, checkIn, checkOut, location)
                         showAddPastModal = false
@@ -287,7 +287,8 @@ private fun PunchHeroCard(
         else -> "Not started"
     }
     val statusColor = if (uiState.isCheckedIn) OrbitColors.success else OrbitColors.slate300
-    val progress = (uiState.elapsed.toMinutes().toFloat() / STANDARD_SHIFT.toMinutes().toFloat()).coerceIn(0f, 1f)
+    val shiftMinutes = AttendanceStats.shiftDuration(uiState.shiftStart, uiState.shiftEnd).toMinutes().toFloat()
+    val progress = (uiState.elapsed.toMinutes().toFloat() / shiftMinutes).coerceIn(0f, 1f)
 
     Column(
         modifier = Modifier

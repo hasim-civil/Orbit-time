@@ -46,6 +46,7 @@ import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
+import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.ui.components.cardRiseEntrance
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
 import com.hasim.orbittime.ui.theme.OrbitColors
@@ -60,8 +61,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 
-/** Reference progress-bar denominator for a day's history row — no shift-schedule model exists yet. */
-private val STANDARD_SHIFT = Duration.ofMinutes((8.5 * 60).toLong())
 private val WEEKDAY_HEADERS = listOf("M", "T", "W", "T", "F", "S", "S")
 
 // Measured directly from the reference design file (screen-edge to card-edge margin);
@@ -165,7 +164,7 @@ fun TimesheetContent(
                             onNextMonth = onNextMonth,
                         )
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                        DailyHistoryCard(history = uiState.history)
+                        DailyHistoryCard(history = uiState.history, shiftDuration = uiState.shiftDuration)
                     }
 
                     Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
@@ -299,7 +298,7 @@ private fun LegendDot(color: Color, text: String) {
 }
 
 @Composable
-private fun DailyHistoryCard(history: List<TimesheetDay>) {
+private fun DailyHistoryCard(history: List<TimesheetDay>, shiftDuration: Duration) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -323,14 +322,14 @@ private fun DailyHistoryCard(history: List<TimesheetDay>) {
             )
         } else {
             history.forEach { day ->
-                DailyHistoryRow(day = day)
+                DailyHistoryRow(day = day, shiftDuration = shiftDuration)
             }
         }
     }
 }
 
 @Composable
-private fun DailyHistoryRow(day: TimesheetDay) {
+private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
     val today = AttendanceTimeFormat.today()
     val isOngoingToday = day.date == today && day.checkOutAt == null
 
@@ -341,6 +340,16 @@ private fun DailyHistoryRow(day: TimesheetDay) {
         end?.let { Duration.between(checkIn, it).let { d -> if (d.isNegative) Duration.ZERO else d } }
     }
 
+    // A day worked from home or another site is still "on time" — but the location is more
+    // useful to show than that generic label, since punctuality already has its own flags below.
+    val locationLabel = day.location?.let { raw ->
+        when (runCatching { AttendanceLocation.valueOf(raw) }.getOrNull()) {
+            AttendanceLocation.WORK_FROM_HOME -> "WFH"
+            AttendanceLocation.OUTSTATION -> "Outstation"
+            else -> null
+        }
+    }
+
     val (statusLabel, statusColor) = when {
         day.checkInAt != null && day.checkOutAt == null && !isOngoingToday -> "Incomplete" to OrbitColors.slate500
         day.status == AttendanceStatus.LATE -> "Late" to OrbitColors.warningDark
@@ -348,6 +357,7 @@ private fun DailyHistoryRow(day: TimesheetDay) {
         day.status == AttendanceStatus.ABSENT -> "Absent" to OrbitColors.danger
         day.status == AttendanceStatus.LEAVE -> "Leave" to OrbitColors.accent
         day.status == AttendanceStatus.HOLIDAY -> "Holiday" to OrbitColors.slate500
+        locationLabel != null -> locationLabel to OrbitColors.info
         else -> "On time" to OrbitColors.successDark
     }
 
@@ -364,7 +374,7 @@ private fun DailyHistoryRow(day: TimesheetDay) {
         "—"
     }
 
-    val progress = duration?.let { (it.toMinutes().toFloat() / STANDARD_SHIFT.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
+    val progress = duration?.let { (it.toMinutes().toFloat() / shiftDuration.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
     // The reference's "barGrow": each row's progress bar grows in from empty when it first appears.
     val animatedProgress = remember { Animatable(0f) }
     LaunchedEffect(progress) {

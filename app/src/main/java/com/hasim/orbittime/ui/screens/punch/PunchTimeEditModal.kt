@@ -378,15 +378,19 @@ fun AddPastAttendanceModal(
     initialDate: LocalDate,
     onConfirm: (LocalDate, LocalTime, LocalTime, AttendanceLocation?) -> Unit,
     onDismiss: () -> Unit,
+    defaultCheckIn: LocalTime = LocalTime.of(9, 0),
+    defaultCheckOut: LocalTime = LocalTime.of(17, 30),
 ) {
     var selectedDate by remember { mutableStateOf(initialDate) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var inHour by remember { mutableStateOf("9") }
-    var inMinute by remember { mutableStateOf("00") }
-    var inAm by remember { mutableStateOf(true) }
-    var outHour by remember { mutableStateOf("5") }
-    var outMinute by remember { mutableStateOf("30") }
-    var outAm by remember { mutableStateOf(false) }
+    val (defaultInHour, defaultInMinute, defaultInAm) = defaultCheckIn.to12HourParts()
+    val (defaultOutHour, defaultOutMinute, defaultOutAm) = defaultCheckOut.to12HourParts()
+    var inHour by remember { mutableStateOf(defaultInHour.toString()) }
+    var inMinute by remember { mutableStateOf(defaultInMinute.toString().padStart(2, '0')) }
+    var inAm by remember { mutableStateOf(defaultInAm) }
+    var outHour by remember { mutableStateOf(defaultOutHour.toString()) }
+    var outMinute by remember { mutableStateOf(defaultOutMinute.toString().padStart(2, '0')) }
+    var outAm by remember { mutableStateOf(defaultOutAm) }
     var location by remember { mutableStateOf<AttendanceLocation?>(null) }
 
     val checkIn = parseTimeInputs(inHour, inMinute, inAm)

@@ -51,6 +51,8 @@ data class PunchUiState(
     val summary: AttendanceSummary = AttendanceSummary(),
     val summaryErrorMessage: String? = null,
     val successMessage: PunchSuccessKind? = null,
+    val shiftStart: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER,
+    val shiftEnd: LocalTime = AttendanceStats.DEFAULT_SHIFT_END,
 ) {
     val isCheckedIn: Boolean get() = checkInAt != null && checkOutAt == null
     val isCompleted: Boolean get() = checkInAt != null && checkOutAt != null
@@ -85,6 +87,10 @@ class AttendanceViewModel(
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
 
+    /** Each user's own shift end, loaded from their profile — paired with [lateAfter] as the
+     * real denominator for shift-completion progress bars (was previously a hardcoded 8.5h). */
+    private var shiftEnd: LocalTime = AttendanceStats.DEFAULT_SHIFT_END
+
     private val _uiState = MutableStateFlow(PunchUiState())
     val uiState: StateFlow<PunchUiState> = _uiState.asStateFlow()
 
@@ -116,9 +122,12 @@ class AttendanceViewModel(
     private fun loadShiftStart(uid: String) {
         viewModelScope.launch {
             val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
-            val parsed = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-            if (parsed != null) {
-                lateAfter = parsed
+            val parsedStart = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            val parsedEnd = profile?.shiftEnd?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            if (parsedStart != null) lateAfter = parsedStart
+            if (parsedEnd != null) shiftEnd = parsedEnd
+            if (parsedStart != null || parsedEnd != null) {
+                _uiState.update { it.copy(shiftStart = lateAfter, shiftEnd = shiftEnd) }
                 recomputeSummary()
             }
         }
