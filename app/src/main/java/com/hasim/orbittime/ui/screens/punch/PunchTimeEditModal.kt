@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Color
@@ -193,6 +194,11 @@ private fun VerticalAmPmSelector(isAm: Boolean, onSelect: (Boolean) -> Unit) {
         modifier = Modifier
             .width(52.dp)
             .height(TimeBoxHeight)
+            // Without this clip, each AmPmOption's own square-cornered purple fill paints past
+            // the outer shape's rounded corners — the selected segment stuck out as a
+            // rectangular purple extension at the top or bottom instead of following the
+            // container's rounding.
+            .clip(FieldShape)
             .background(OrbitColors.cream50, FieldShape)
             .border(1.dp, OrbitColors.slate200, FieldShape),
     ) {
