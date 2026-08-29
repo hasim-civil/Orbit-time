@@ -1,6 +1,8 @@
 package com.hasim.orbittime.ui.screens.home
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -35,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -42,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -559,9 +563,9 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
-            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.success, value = summary.presentDays.toString(), label = "Present")
-            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.danger, value = summary.absentDays.toString(), label = "Absent")
-            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, value = summary.lateDays.toString(), label = "Late")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.success, targetValue = summary.presentDays, label = "Present")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.danger, targetValue = summary.absentDays, label = "Absent")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, targetValue = summary.lateDays, label = "Late")
         }
 
         Spacer(modifier = Modifier.height(OrbitSpacing.sm))
@@ -570,14 +574,16 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             SummaryCell(
                 modifier = Modifier.weight(1f),
                 accent = OrbitColors.accent,
-                value = AttendanceTimeFormat.wholeHoursLabel(summary.worked),
+                targetValue = summary.worked.toHours().toInt(),
+                format = { "${it}h" },
                 label = "Worked",
             )
-            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.info, value = summary.leaveDays.toString(), label = "Leave")
+            SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.info, targetValue = summary.leaveDays, label = "Leave")
             SummaryCell(
                 modifier = Modifier.weight(1f),
                 accent = OrbitColors.ink900,
-                value = AttendanceTimeFormat.wholeHoursLabel(summary.overtime),
+                targetValue = summary.overtime.toHours().toInt(),
+                format = { "${it}h" },
                 label = "Overtime",
             )
         }
@@ -598,7 +604,29 @@ private val SummaryCellChipShape = RoundedCornerShape(7.dp)
  * from layered translucent gradients instead.
  */
 @Composable
-private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label: String) {
+private fun SummaryCell(
+    modifier: Modifier,
+    accent: Color,
+    targetValue: Int,
+    label: String,
+    format: (Int) -> String = Int::toString,
+) {
+    // Count-up: animates 0 -> targetValue once per value (LaunchedEffect keyed on it), then sits
+    // completely still — a later recomposition with the same targetValue never replays it.
+    val animatedValue = remember { Animatable(0f) }
+    LaunchedEffect(targetValue) {
+        animatedValue.snapTo(0f)
+        animatedValue.animateTo(targetValue.toFloat(), tween(650, easing = FastOutSlowInEasing))
+    }
+
+    // Glass reflection: a soft diagonal highlight band that sweeps across the card once on
+    // first appearance, clipped to the same shape as the card itself (drawn as the last modifier
+    // in this chain, so it stays inside the .clip() below) — never a separate rectangular layer.
+    val sweepProgress = remember { Animatable(-0.4f) }
+    LaunchedEffect(Unit) {
+        sweepProgress.animateTo(1.4f, tween(900, delayMillis = 120, easing = FastOutSlowInEasing))
+    }
+
     Column(
         modifier = modifier
             .clip(OrbitShapes.small)
@@ -617,6 +645,20 @@ private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label:
                 ),
             )
             .border(1.dp, Color.White.copy(alpha = 0.55f), OrbitShapes.small)
+            .drawWithContent {
+                drawContent()
+                val bandWidth = size.width * 0.5f
+                val centerX = sweepProgress.value * (size.width + bandWidth)
+                drawRect(
+                    brush = Brush.linearGradient(
+                        0f to Color.Transparent,
+                        0.5f to Color.White.copy(alpha = 0.16f),
+                        1f to Color.Transparent,
+                        start = Offset(centerX - bandWidth, 0f),
+                        end = Offset(centerX + bandWidth, size.height),
+                    ),
+                )
+            }
             .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
     ) {
         Box(
@@ -633,7 +675,7 @@ private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label:
             Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
         }
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-        Text(text = value, style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
+        Text(text = format(animatedValue.value.toInt()), style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
         Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
         Text(text = label, style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
     }

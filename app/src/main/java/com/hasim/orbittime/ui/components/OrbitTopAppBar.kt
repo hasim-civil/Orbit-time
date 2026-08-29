@@ -1,6 +1,8 @@
 package com.hasim.orbittime.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -22,8 +24,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -32,6 +37,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -72,6 +78,19 @@ fun OrbitTopAppBar(
     )
     val glowColor = lerp(Color(0xFF6D3BF5).copy(alpha = 0.22f), OrbitColors.purple600.copy(alpha = 0.44f), glowT)
 
+    // One subtle pulse the moment a genuinely new notification arrives (false -> true), never
+    // a continuous animation and never replayed just because the screen recomposes while it's
+    // already true (e.g. re-entering a tab with an unread notification still pending).
+    var wasNotified by remember { mutableStateOf(hasNotification) }
+    val bellPulse = remember { Animatable(1f) }
+    LaunchedEffect(hasNotification) {
+        if (hasNotification && !wasNotified) {
+            bellPulse.animateTo(1.22f, tween(140, easing = FastOutSlowInEasing))
+            bellPulse.animateTo(1f, tween(180, easing = FastOutSlowInEasing))
+        }
+        wasNotified = hasNotification
+    }
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -110,6 +129,7 @@ fun OrbitTopAppBar(
             Box(
                 modifier = Modifier
                     .size(36.dp)
+                    .graphicsLayer { scaleX = bellPulse.value; scaleY = bellPulse.value }
                     .shadow(elevation = 2.dp, shape = CircleShape)
                     .clip(CircleShape)
                     .background(OrbitColors.cream50.copy(alpha = 0.96f), CircleShape)

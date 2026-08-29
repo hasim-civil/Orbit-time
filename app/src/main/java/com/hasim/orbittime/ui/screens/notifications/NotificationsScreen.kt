@@ -22,14 +22,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -71,6 +81,16 @@ fun NotificationsScreen(
     viewModel: NotificationsViewModel = viewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Tracks which notification ids have already been seen so only a genuinely new arrival
+    // (not the whole list on every visit to this screen) plays the fade/slide-in entrance.
+    // Starts null so the very first load — whatever is already there — never counts as "new".
+    var seenIds by remember { mutableStateOf<Set<String>?>(null) }
+    LaunchedEffect(uiState.notifications) {
+        val currentIds = uiState.notifications.map { it.id }.toSet()
+        seenIds = (seenIds ?: currentIds) + currentIds
+    }
+    val knownIds = seenIds
 
     Box(modifier = Modifier.fillMaxSize()) {
         OrbitAtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -117,7 +137,14 @@ fun NotificationsScreen(
                         EmptyNotificationsCard()
                     } else {
                         uiState.notifications.forEach { notification ->
-                            NotificationCard(notification = notification, onClick = { viewModel.markRead(notification.id) })
+                            key(notification.id) {
+                                val isNew = knownIds != null && notification.id !in knownIds
+                                NotificationCard(
+                                    notification = notification,
+                                    playEntrance = isNew,
+                                    onClick = { viewModel.markRead(notification.id) },
+                                )
+                            }
                         }
                     }
 
@@ -129,11 +156,25 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NotificationCard(notification: UserNotification, onClick: () -> Unit) {
+private fun NotificationCard(notification: UserNotification, playEntrance: Boolean, onClick: () -> Unit) {
     val (tint, ink) = notification.kind.colors()
+
+    // Only a genuinely new card (per [playEntrance], fixed at first composition since this is
+    // keyed by the caller's key(notification.id)) fades/slides in; an already-seen notification
+    // renders fully settled immediately, with no per-visit replay.
+    val entrance = remember { Animatable(if (playEntrance) 0f else 1f) }
+    val density = LocalDensity.current
+    LaunchedEffect(Unit) {
+        if (playEntrance) entrance.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                alpha = entrance.value
+                translationY = (1f - entrance.value) * with(density) { 12.dp.toPx() }
+            }
             .clip(RoundedCornerShape(24.dp))
             .background(OrbitColors.cream50.copy(alpha = if (notification.read) 0.7f else 0.96f))
             .clickable(onClick = onClick)

@@ -1,12 +1,14 @@
 package com.hasim.orbittime.ui.screens.profile
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -37,6 +39,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -291,6 +294,19 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                 ),
         )
 
+        // One-shot entrance for the header's own content, on top of the screen-wide
+        // cardRiseEntrance: the photo fades in with a subtle 95% -> 100% scale, and the
+        // name/details column fades in just behind it — no position change, so the card itself
+        // never visibly moves.
+        val photoEntrance = remember { Animatable(0f) }
+        val infoEntrance = remember { Animatable(0f) }
+        LaunchedEffect(Unit) {
+            photoEntrance.animateTo(1f, tween(320, easing = FastOutSlowInEasing))
+        }
+        LaunchedEffect(Unit) {
+            infoEntrance.animateTo(1f, tween(320, delayMillis = 80, easing = FastOutSlowInEasing))
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -298,7 +314,18 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(modifier = Modifier.size(76.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .graphicsLayer {
+                        alpha = photoEntrance.value
+                        val scale = 0.95f + photoEntrance.value * 0.05f
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .clip(CircleShape)
+                    .clickable(onClick = onAvatarClick),
+            ) {
                 val decodedPhoto = remember(photoBase64) {
                     photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
                 }
@@ -330,7 +357,7 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                 }
             }
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.weight(1f).graphicsLayer { alpha = infoEntrance.value }) {
                 Text(
                     text = uiState.name,
                     style = NameStyle,
