@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -88,10 +88,12 @@ private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
  * own screens (~24-26px) — matched here rather than via the shared OrbitSpacing.screenHorizontal
  * token, which auth screens still rely on. */
 private val DashboardHorizontalMargin = 14.dp
-// Tightened from 10dp so the full Home screen (greeting + monthly + all 6 summary cards) fits
-// one viewport without scrolling on a normal phone — see the matching padding/spacer trims
-// throughout this file below.
-private val DashboardSectionGap = 8.dp
+
+// The inter-section gap is computed from the actual viewport height (see HomeDashboardContent's
+// BoxWithConstraints) rather than hardcoded here, so it stays a small, natural, consistent value
+// on a short phone and never balloons into a huge gap on a tall one.
+private val DashboardMinSectionGap = 8.dp
+private val DashboardMaxSectionGap = 16.dp
 
 // Text styles below are measured directly from the reference's inline styles for this screen —
 // the reference contrasts an editorial serif for headline moments (clock, month label, the two
@@ -166,55 +168,58 @@ fun HomeDashboardContent(
             )
 
             OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
-                // Not scrollable: the section gaps below are two `weight(1f)` spacers (a
-                // scrollable column measures children with infinite height, which weight can't
-                // resolve against) so any extra room this bounded box has beyond the three
-                // fixed-size cards is split evenly between them, instead of collecting as one
-                // dead strip under the last card. On a phone too short for the cards to fit at
-                // their current size, both spacers simply collapse to their DashboardSectionGap
-                // floor rather than clipping content.
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = DashboardHorizontalMargin)
-                        .cardRiseEntrance(),
-                ) {
-                    Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    // A small, fixed share of the ACTUAL available height (not a flat hardcoded
+                    // constant, and not an unbounded weight-fill spacer — the latter split 100%
+                    // of any leftover room across just two gaps, which is what turned into the
+                    // disproportionately huge Today->Monthly gap on a taller phone). Clamped to a
+                    // narrow 8-16dp range so it always reads as one consistent, natural gap
+                    // between every section, on any screen height.
+                    val sectionGap = (maxHeight * 0.016f).coerceIn(DashboardMinSectionGap, DashboardMaxSectionGap)
 
-                    if (uiState.isLoading) {
-                        LoadingBox(height = 140.dp)
-                    } else {
-                        GreetingCard(userDisplayName, uiState)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = DashboardHorizontalMargin)
+                            .cardRiseEntrance(),
+                    ) {
+                        Spacer(modifier = Modifier.height(sectionGap))
+
+                        if (uiState.isLoading) {
+                            LoadingBox(height = 140.dp)
+                        } else {
+                            GreetingCard(userDisplayName, uiState)
+                        }
+
+                        Spacer(modifier = Modifier.height(sectionGap))
+
+                        if (uiState.summaryErrorMessage != null) {
+                            InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
+                            Spacer(modifier = Modifier.height(sectionGap))
+                        } else if (!uiState.isOnline) {
+                            InlineBanner(
+                                text = "You're offline. Showing the last synced attendance data.",
+                                color = OrbitColors.warningDark,
+                                background = OrbitColors.warningBg,
+                            )
+                            Spacer(modifier = Modifier.height(sectionGap))
+                        }
+
+                        if (uiState.isSummaryLoading) {
+                            LoadingBox(height = 180.dp)
+                        } else {
+                            MonthlyAttendanceCard(
+                                summary = uiState.summary,
+                                rangeMode = uiState.rangeMode,
+                                onRangeModeSelected = onRangeModeSelected,
+                            )
+                            Spacer(modifier = Modifier.height(sectionGap))
+                            AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
+                        }
+
+                        Spacer(modifier = Modifier.height(sectionGap))
+                        Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                     }
-
-                    Spacer(modifier = Modifier.weight(1f).heightIn(min = DashboardSectionGap))
-
-                    if (uiState.summaryErrorMessage != null) {
-                        InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
-                        Spacer(modifier = Modifier.height(DashboardSectionGap))
-                    } else if (!uiState.isOnline) {
-                        InlineBanner(
-                            text = "You're offline. Showing the last synced attendance data.",
-                            color = OrbitColors.warningDark,
-                            background = OrbitColors.warningBg,
-                        )
-                        Spacer(modifier = Modifier.height(DashboardSectionGap))
-                    }
-
-                    if (uiState.isSummaryLoading) {
-                        LoadingBox(height = 180.dp)
-                    } else {
-                        MonthlyAttendanceCard(
-                            summary = uiState.summary,
-                            rangeMode = uiState.rangeMode,
-                            onRangeModeSelected = onRangeModeSelected,
-                        )
-                        Spacer(modifier = Modifier.weight(1f).heightIn(min = DashboardSectionGap))
-                        AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
-                    }
-
-                    Spacer(modifier = Modifier.height(DashboardSectionGap))
-                    Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                 }
             }
         }
