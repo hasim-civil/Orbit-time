@@ -20,15 +20,51 @@ class AuthRepository(
     val currentUser: FirebaseUser? get() = auth.currentUser
 
     suspend fun signIn(email: String, password: String): Result<FirebaseUser> = runCatching {
-        auth.signInWithEmailAndPassword(email.trim(), password).await().user
+        val user = auth.signInWithEmailAndPassword(email.trim(), password).await().user
             ?: error("Sign in succeeded but no user was returned.")
+        // Reload rather than trusting whatever isEmailVerified this FirebaseUser instance
+        // already carries — it could be stale if verification happened on another device/
+        // session since this one last talked to Firebase. Best-effort: a reload hiccup right
+        // after a successful sign-in shouldn't turn the sign-in itself into a reported failure.
+        runCatching { user.reload().await() }
+        user
     }.recoverCatching { throw AuthException(mapAuthError(it)) }
 
     suspend fun createAccount(name: String, email: String, password: String): Result<FirebaseUser> = runCatching {
         val user = auth.createUserWithEmailAndPassword(email.trim(), password).await().user
             ?: error("Account created but no user was returned.")
         user.updateProfile(userProfileChangeRequest { displayName = name.trim() }).await()
+        // Best-effort: a brand-new account should never fail to create just because the
+        // verification email couldn't be sent right this instant — the Verify Email screen's
+        // own Resend button covers that.
+        runCatching { user.sendEmailVerification().await() }
         user
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    /**
+     * Reloads the current user's account state from Firebase and returns it, so
+     * [FirebaseUser.isEmailVerified] reflects reality rather than a possibly-stale cached value —
+     * used by the Verify Email screen's "Check verification" action. When verification just
+     * turned true, this also force-refreshes the ID token: Firestore Security Rules read
+     * `email_verified` from the token's claims, and [FirebaseUser.reload] alone updates the
+     * local user object without minting a fresh token, so without this a just-verified user
+     * would still be denied by verified-only rules until the SDK happened to refresh later.
+     */
+    suspend fun reloadCurrentUser(): Result<FirebaseUser> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        user.reload().await()
+        if (user.isEmailVerified) {
+            runCatching { user.getIdToken(true).await() }
+        }
+        user
+    }.recoverCatching { throw AuthException(mapAuthError(it)) }
+
+    /** Fires Firebase Authentication's own built-in verification email — no custom OTP or
+     * mail server involved. Used both right after registration and by "Resend email". */
+    suspend fun sendEmailVerification(): Result<Unit> = runCatching {
+        val user = auth.currentUser ?: error("You're not signed in.")
+        user.sendEmailVerification().await()
+        Unit
     }.recoverCatching { throw AuthException(mapAuthError(it)) }
 
     suspend fun signInWithGoogleIdToken(idToken: String): Result<FirebaseUser> = runCatching {
