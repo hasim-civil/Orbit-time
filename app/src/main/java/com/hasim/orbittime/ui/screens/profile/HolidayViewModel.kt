@@ -18,6 +18,7 @@ data class HolidayUiState(
     val isLoading: Boolean = true,
     val holidays: List<HolidayRecord> = emptyList(),
     val errorMessage: String? = null,
+    val isSaving: Boolean = false,
 )
 
 /** Backs the Holiday List screen — a purely personal, self-managed calendar. */
@@ -45,19 +46,29 @@ class HolidayViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    /** Guarded against a rapid double-tap: [holidayRepository.saveHoliday] creates a brand-new
+     * document via `.add()` for a new holiday (blank id), which — unlike a `.set()` to a fixed
+     * id — is not naturally idempotent, so firing it twice before the first write lands would
+     * create two duplicate holidays. */
     fun saveHoliday(holiday: HolidayRecord) {
         val uid = authRepository.currentUser?.uid ?: return
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             holidayRepository.saveHoliday(uid, holiday)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+            _uiState.update { it.copy(isSaving = false) }
         }
     }
 
     fun deleteHoliday(holidayId: String) {
         val uid = authRepository.currentUser?.uid ?: return
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             holidayRepository.deleteHoliday(uid, holidayId)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+            _uiState.update { it.copy(isSaving = false) }
         }
     }
 }

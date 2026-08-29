@@ -18,6 +18,7 @@ data class LeaveUiState(
     val isLoading: Boolean = true,
     val leaves: List<LeaveRecord> = emptyList(),
     val errorMessage: String? = null,
+    val isSaving: Boolean = false,
 )
 
 /** Backs the Add Leave screen — purely personal attendance tracking, no approval workflow. */
@@ -45,19 +46,29 @@ class LeaveViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Guarded against a rapid double-tap: [leaveRepository.saveLeave] creates a brand-new
+     * document via `.add()` for a new leave (blank id), which — unlike a `.set()` to a fixed
+     * id — is not naturally idempotent, so firing it twice before the first write lands would
+     * create two duplicate leave records. */
     fun saveLeave(leave: LeaveRecord) {
         val uid = authRepository.currentUser?.uid ?: return
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             leaveRepository.saveLeave(uid, leave)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+            _uiState.update { it.copy(isSaving = false) }
         }
     }
 
     fun deleteLeave(leaveId: String) {
         val uid = authRepository.currentUser?.uid ?: return
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
             leaveRepository.deleteLeave(uid, leaveId)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+            _uiState.update { it.copy(isSaving = false) }
         }
     }
 }
