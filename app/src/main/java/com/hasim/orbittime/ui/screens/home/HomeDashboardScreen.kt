@@ -101,7 +101,10 @@ private val DashboardSectionGap = 10.dp
 // piece of text — every other heading keeps Instrument Serif. A small positive letter-spacing
 // (rather than the editorial styles' tight/negative tracking) keeps the blocky glyphs legible.
 private val GreetingHeadlineStyle = TextStyle(fontFamily = PixelifySans, fontWeight = FontWeight.Bold, fontSize = 22.sp, lineHeight = 27.sp, letterSpacing = 0.3.sp)
-private val ClockTimeStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 23.sp, lineHeight = 23.sp)
+// Deliberately larger than its 23sp original — the greeting column beside it (headline + date)
+// already runs ~49dp tall, so growing just this style still fits inside that same row height
+// with no change to the card's own layout/height, per the "increase only the time text" ask.
+private val ClockTimeStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 36.sp, lineHeight = 36.sp)
 private val MonthHeadingStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 22.sp, lineHeight = 24.sp)
 private val RingBigNumberStyle = TextStyle(fontFamily = InstrumentSerif, fontWeight = FontWeight.Normal, fontSize = 26.sp, lineHeight = 26.sp)
 private val RingCaptionStyle = OrbitTypography.label.copy(fontWeight = FontWeight.Normal, fontSize = 8.sp, letterSpacing = 0.5.sp)
@@ -627,56 +630,68 @@ private fun SummaryCell(
         sweepProgress.animateTo(1.4f, tween(900, delayMillis = 120, easing = FastOutSlowInEasing))
     }
 
-    Column(
-        modifier = modifier
-            .clip(OrbitShapes.small)
-            .background(
-                brush = Brush.linearGradient(
-                    0f to accent.copy(alpha = 0.22f),
-                    0.5f to accent.copy(alpha = 0.10f),
-                    1f to accent.copy(alpha = 0.05f),
-                ),
-            )
-            .background(
-                brush = Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.40f),
-                    0.5f to Color.White.copy(alpha = 0.12f),
-                    1f to Color.Transparent,
-                ),
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.55f), OrbitShapes.small)
-            .drawWithContent {
-                drawContent()
-                val bandWidth = size.width * 0.5f
-                val centerX = sweepProgress.value * (size.width + bandWidth)
-                drawRect(
-                    brush = Brush.linearGradient(
-                        0f to Color.Transparent,
-                        0.5f to Color.White.copy(alpha = 0.16f),
-                        1f to Color.Transparent,
-                        start = Offset(centerX - bandWidth, 0f),
-                        end = Offset(centerX + bandWidth, size.height),
-                    ),
-                )
-            }
-            .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
-    ) {
+    Box(modifier = modifier) {
+        // Very subtle drop shadow simulated as a soft, downward-offset duplicate shape —
+        // deliberately not Modifier.shadow() (see note above: it left a visible rectangular
+        // artifact on this exact component).
         Box(
             modifier = Modifier
-                .size(20.dp)
+                .matchParentSize()
+                .graphicsLayer { translationY = 2.dp.toPx() }
+                .background(Color.Black.copy(alpha = 0.08f), OrbitShapes.small),
+        )
+
+        Column(
+            modifier = Modifier
+                .clip(OrbitShapes.small)
                 .background(
                     brush = Brush.linearGradient(
-                        colors = listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.1f)),
+                        0f to accent.copy(alpha = 0.22f),
+                        0.5f to accent.copy(alpha = 0.10f),
+                        1f to accent.copy(alpha = 0.05f),
                     ),
-                    shape = SummaryCellChipShape,
-                ),
-            contentAlignment = Alignment.Center,
+                )
+                .background(
+                    brush = Brush.verticalGradient(
+                        0f to Color.White.copy(alpha = 0.40f),
+                        0.5f to Color.White.copy(alpha = 0.12f),
+                        1f to Color.Transparent,
+                    ),
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.55f), OrbitShapes.small)
+                .drawWithContent {
+                    drawContent()
+                    val bandWidth = size.width * 0.5f
+                    val centerX = sweepProgress.value * (size.width + bandWidth)
+                    drawRect(
+                        brush = Brush.linearGradient(
+                            0f to Color.Transparent,
+                            0.5f to Color.White.copy(alpha = 0.16f),
+                            1f to Color.Transparent,
+                            start = Offset(centerX - bandWidth, 0f),
+                            end = Offset(centerX + bandWidth, size.height),
+                        ),
+                    )
+                }
+                .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
         ) {
-            Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .background(
+                        brush = Brush.linearGradient(
+                            colors = listOf(accent.copy(alpha = 0.26f), accent.copy(alpha = 0.1f)),
+                        ),
+                        shape = SummaryCellChipShape,
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
+            }
+            Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+            Text(text = format(animatedValue.value.toInt()), style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
+            Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
+            Text(text = label, style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
         }
-        Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-        Text(text = format(animatedValue.value.toInt()), style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
-        Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-        Text(text = label, style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
     }
 }

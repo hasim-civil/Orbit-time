@@ -252,7 +252,7 @@ fun PunchContent(
  * blurring a solid-color box does nothing. Tapping the scrim dismisses, tapping the card itself
  * does not (consumed by the card's own background clickable-free surface). */
 @Composable
-private fun ModalScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+fun ModalScrim(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()

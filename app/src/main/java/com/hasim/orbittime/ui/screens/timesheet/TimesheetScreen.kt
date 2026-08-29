@@ -6,6 +6,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,18 +29,25 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,6 +58,8 @@ import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.components.OrbitTopAppBar
 import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.ui.components.cardRiseEntrance
+import com.hasim.orbittime.ui.screens.punch.EditTimeModal
+import com.hasim.orbittime.ui.screens.punch.ModalScrim
 import com.hasim.orbittime.ui.screens.welcome.OrbitAtmosphereBackground
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
@@ -60,6 +72,10 @@ import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val WEEKDAY_HEADERS = listOf("M", "T", "W", "T", "F", "S", "S")
 
@@ -96,6 +112,8 @@ fun TimesheetScreen(
         onTabSelected = onTabSelected,
         onPreviousMonth = viewModel::showPreviousMonth,
         onNextMonth = viewModel::showNextMonth,
+        onEditDay = viewModel::editDay,
+        onDeleteDay = viewModel::deleteDay,
         photoBase64 = photoBase64,
         hasNotification = hasNotification,
         onBellClick = onBellClick,
@@ -110,6 +128,8 @@ fun TimesheetContent(
     onTabSelected: (OrbitTab) -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
+    onEditDay: (LocalDate, LocalTime, LocalTime?, AttendanceLocation?) -> Unit = { _, _, _, _ -> },
+    onDeleteDay: (LocalDate) -> Unit = {},
     photoBase64: String = "",
     hasNotification: Boolean = false,
     onBellClick: () -> Unit = {},
@@ -164,7 +184,12 @@ fun TimesheetContent(
                             onNextMonth = onNextMonth,
                         )
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
-                        DailyHistoryCard(history = uiState.history, shiftDuration = uiState.shiftDuration)
+                        DailyHistoryCard(
+                            history = uiState.history,
+                            shiftDuration = uiState.shiftDuration,
+                            onEditDay = onEditDay,
+                            onDeleteDay = onDeleteDay,
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
@@ -298,7 +323,15 @@ private fun LegendDot(color: Color, text: String) {
 }
 
 @Composable
-private fun DailyHistoryCard(history: List<TimesheetDay>, shiftDuration: Duration) {
+private fun DailyHistoryCard(
+    history: List<TimesheetDay>,
+    shiftDuration: Duration,
+    onEditDay: (LocalDate, LocalTime, LocalTime?, AttendanceLocation?) -> Unit,
+    onDeleteDay: (LocalDate) -> Unit,
+) {
+    var editingDay by remember { mutableStateOf<TimesheetDay?>(null) }
+    var pendingDeleteDay by remember { mutableStateOf<TimesheetDay?>(null) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -322,9 +355,130 @@ private fun DailyHistoryCard(history: List<TimesheetDay>, shiftDuration: Duratio
             )
         } else {
             history.forEach { day ->
-                DailyHistoryRow(day = day, shiftDuration = shiftDuration)
+                SwipeableHistoryRow(
+                    day = day,
+                    shiftDuration = shiftDuration,
+                    onEditClick = { editingDay = day },
+                    onDeleteClick = { pendingDeleteDay = day },
+                )
             }
         }
+    }
+
+    val dayBeingEdited = editingDay
+    val editCheckIn = dayBeingEdited?.checkInAt
+    if (dayBeingEdited != null && editCheckIn != null) {
+        val zone = ZoneId.systemDefault()
+        val today = AttendanceTimeFormat.today()
+        val isOngoingToday = dayBeingEdited.date == today && dayBeingEdited.checkOutAt == null
+        ModalScrim(onDismiss = { editingDay = null }) {
+            EditTimeModal(
+                title = "Edit ${AttendanceTimeFormat.dayLabel(dayBeingEdited.date)}",
+                subtitle = "Update the check-in, check-out and location for this date.",
+                initialCheckIn = editCheckIn.atZone(zone).toLocalTime(),
+                initialCheckOut = dayBeingEdited.checkOutAt?.atZone(zone)?.toLocalTime(),
+                initialLocation = dayBeingEdited.location?.let { runCatching { AttendanceLocation.valueOf(it) }.getOrNull() },
+                forceShowCheckOut = !isOngoingToday,
+                onConfirm = { checkIn, checkOut, location ->
+                    onEditDay(dayBeingEdited.date, checkIn, checkOut, location)
+                    editingDay = null
+                },
+                onDismiss = { editingDay = null },
+            )
+        }
+    }
+
+    val dayBeingDeleted = pendingDeleteDay
+    if (dayBeingDeleted != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDeleteDay = null },
+            title = { Text(text = "Delete this record?", style = OrbitTypography.titleMedium) },
+            text = {
+                Text(
+                    text = "This will permanently remove the attendance record for ${AttendanceTimeFormat.dayLabel(dayBeingDeleted.date)}.",
+                    style = OrbitTypography.bodyMedium,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteDay(dayBeingDeleted.date)
+                    pendingDeleteDay = null
+                }) { Text("Delete", color = OrbitColors.danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteDay = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+private val SwipeActionWidth = 76.dp
+private val SwipeRevealWidth = SwipeActionWidth * 2
+
+/** Wraps the existing, unchanged [DailyHistoryRow] with a horizontal swipe-to-reveal: dragging
+ * it left slides the row aside to expose Edit/Delete buttons underneath, snapping open or shut
+ * based on how far it was dragged. The row's own visual design is untouched — only an opaque
+ * background is added so the actions stay hidden until it's actually swiped open. */
+@Composable
+private fun SwipeableHistoryRow(
+    day: TimesheetDay,
+    shiftDuration: Duration,
+    onEditClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val revealPx = with(density) { SwipeRevealWidth.toPx() }
+    val offsetX = remember(day.date) { Animatable(0f) }
+    val scope = rememberCoroutineScope()
+
+    fun close() {
+        scope.launch { offsetX.animateTo(0f, tween(200)) }
+    }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.matchParentSize(), horizontalArrangement = Arrangement.End) {
+            SwipeActionButton(
+                label = "Edit",
+                background = OrbitColors.violet600,
+                modifier = Modifier.width(SwipeActionWidth).fillMaxHeight(),
+                onClick = { close(); onEditClick() },
+            )
+            SwipeActionButton(
+                label = "Delete",
+                background = OrbitColors.danger,
+                modifier = Modifier.width(SwipeActionWidth).fillMaxHeight(),
+                onClick = { close(); onDeleteClick() },
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+                .background(OrbitColors.cream50)
+                .draggable(
+                    orientation = Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        scope.launch { offsetX.snapTo((offsetX.value + delta).coerceIn(-revealPx, 0f)) }
+                    },
+                    onDragStopped = { velocity ->
+                        val target = if (offsetX.value < -revealPx / 2f || velocity < -800f) -revealPx else 0f
+                        offsetX.animateTo(target, tween(200))
+                    },
+                ),
+        ) {
+            DailyHistoryRow(day = day, shiftDuration = shiftDuration)
+        }
+    }
+}
+
+@Composable
+private fun SwipeActionButton(label: String, background: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier.background(background).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = OrbitTypography.bodySmall.copy(fontWeight = FontWeight.Bold), color = OrbitColors.cream50)
     }
 }
 

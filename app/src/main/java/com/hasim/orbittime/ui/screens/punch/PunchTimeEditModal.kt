@@ -344,8 +344,15 @@ fun EditTimeModal(
     initialCheckOut: LocalTime?,
     onConfirm: (LocalTime, LocalTime?, AttendanceLocation?) -> Unit,
     onDismiss: () -> Unit,
+    title: String = "Edit today's time",
+    subtitle: String = "Type today's punch times and pick AM or PM.",
+    initialLocation: AttendanceLocation? = null,
+    // Timesheet reuses this modal for a genuinely past Daily History day, which — unlike
+    // "today, possibly still checked in" — always has a real (or addable) check-out, so the
+    // field should never be hidden there even if that day's check-out hasn't been set yet.
+    forceShowCheckOut: Boolean = false,
 ) {
-    val hasCheckOut = initialCheckOut != null
+    val hasCheckOut = initialCheckOut != null || forceShowCheckOut
     val (inHour0, inMinute0, inAm0) = initialCheckIn.to12HourParts()
     val (outHour0, outMinute0, outAm0) = (initialCheckOut ?: LocalTime.NOON).to12HourParts()
     var inHour by remember { mutableStateOf(inHour0.toString()) }
@@ -354,13 +361,13 @@ fun EditTimeModal(
     var outHour by remember { mutableStateOf(outHour0.toString()) }
     var outMinute by remember { mutableStateOf(outMinute0.toString().padStart(2, '0')) }
     var outAm by remember { mutableStateOf(outAm0) }
-    var location by remember { mutableStateOf<AttendanceLocation?>(null) }
+    var location by remember { mutableStateOf(initialLocation) }
 
     val checkIn = parseTimeInputs(inHour, inMinute, inAm)
     val checkOut = if (hasCheckOut) parseTimeInputs(outHour, outMinute, outAm) else null
     val valid = checkIn != null && (!hasCheckOut || checkOut != null)
 
-    PunchModalCard(title = "Edit today's time", subtitle = "Type today's punch times and pick AM or PM.", onDismiss = onDismiss) {
+    PunchModalCard(title = title, subtitle = subtitle, onDismiss = onDismiss) {
         TimeFieldRow("CHECK IN", inHour, inMinute, inAm, { inHour = it }, { inMinute = it }, { inAm = it })
         if (hasCheckOut) {
             TimeFieldRow("CHECK OUT", outHour, outMinute, outAm, { outHour = it }, { outMinute = it }, { outAm = it })

@@ -121,6 +121,20 @@ class AttendanceRepository(
         throw AttendanceException(mapFirestoreErrorMessage(throwable))
     }
 
+    /**
+     * Permanently removes one day's record — e.g. the user deleting a mistaken Daily History
+     * entry from Timesheet. The document ID is the date string itself, so this can only ever
+     * touch the exact date requested, never another record; deleting it never nulls the date
+     * out, it simply stops existing, so the user can freely re-add it later via Add Past
+     * Attendance as if it had never been recorded.
+     */
+    suspend fun deleteRecord(uid: String, date: String): Result<Unit> = runCatching {
+        dayDoc(uid, date).delete().await()
+        Unit
+    }.recoverCatching { throwable ->
+        throw AttendanceException(mapFirestoreErrorMessage(throwable))
+    }
+
     private fun mapFirestoreError(error: FirebaseFirestoreException): AttendanceException =
         AttendanceException(mapFirestoreErrorMessage(error))
 

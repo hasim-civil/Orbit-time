@@ -3,6 +3,8 @@ package com.hasim.orbittime.ui.screens.timesheet
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.Timestamp
+import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRecord
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
@@ -16,6 +18,8 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
+import java.util.Date
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -170,4 +174,36 @@ class TimesheetViewModel(
             }
         }
     }
+
+    /**
+     * Corrects one specific Daily History day's punch times/location. [observeMonth]'s live
+     * listener picks up the write automatically, so the list and every derived stat refresh on
+     * their own — no local state patch needed here.
+     */
+    fun editDay(date: LocalDate, checkInTime: LocalTime, checkOutTime: LocalTime?, location: AttendanceLocation?) {
+        val uid = authRepository.currentUser?.uid ?: return
+        viewModelScope.launch {
+            attendanceRepository.setManualTimes(
+                uid = uid,
+                date = AttendanceTimeFormat.dateKey(date),
+                checkInAt = checkInTime.toTimestamp(date),
+                checkOutAt = checkOutTime?.toTimestamp(date),
+                location = location,
+            ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    /** Permanently removes one day's record — the document ID is that exact date, so this can
+     * never touch any other day. The live [observeMonth] listener removes it from the list and
+     * recomputes every stat as soon as Firestore confirms the delete. */
+    fun deleteDay(date: LocalDate) {
+        val uid = authRepository.currentUser?.uid ?: return
+        viewModelScope.launch {
+            attendanceRepository.deleteRecord(uid, AttendanceTimeFormat.dateKey(date))
+                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+        }
+    }
+
+    private fun LocalTime.toTimestamp(date: LocalDate): Timestamp =
+        Timestamp(Date.from(date.atTime(this).atZone(ZoneId.systemDefault()).toInstant()))
 }
