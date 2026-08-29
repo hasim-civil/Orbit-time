@@ -636,7 +636,18 @@ private fun SummaryCell(
         )
 
         Column(
+            // The actual bug behind every earlier "colored left, grey right" report: this Column
+            // had no width modifier at all, so it wrapped to fit only its icon+number+label
+            // content — narrower than the card. The outer Box is forced to the full weighted
+            // card width (Modifier.weight(1f)'s default fill=true), and the shadow Box above
+            // already spans that full width via matchParentSize(), so its faint black tint was
+            // showing through the leftover space to the right of this too-narrow glass surface,
+            // reading as a flat grey rectangle beside the colored one. fillMaxWidth() (not
+            // matchParentSize(), which would leave the Box with no child left to size itself
+            // from, since the shadow box is already matchParentSize()) makes this Column exactly
+            // as wide as the card while still wrapping its own content height, same as before.
             modifier = Modifier
+                .fillMaxWidth()
                 .clip(OrbitShapes.small)
                 .background(glassColor)
                 .border(1.dp, Color.White.copy(alpha = 0.45f), OrbitShapes.small)
