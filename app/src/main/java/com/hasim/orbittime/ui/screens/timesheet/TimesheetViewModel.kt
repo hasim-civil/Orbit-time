@@ -106,7 +106,11 @@ class TimesheetViewModel(
             if (parsedEnd != null) shiftEnd = parsedEnd
             if (parsedStart != null || parsedEnd != null) {
                 _uiState.update { it.copy(shiftDuration = AttendanceStats.shiftDuration(lateAfter, shiftEnd)) }
-                observeMonth(uid, _uiState.value.displayedMonth)
+                // Re-derive the already-fetched month's days with the corrected shift times
+                // instead of re-subscribing to observeMonth() — that re-fetched the exact same
+                // month's attendance range a second time on every single screen open, since
+                // init() had already started that listener moments earlier.
+                rebuildDays()
             }
         }
     }

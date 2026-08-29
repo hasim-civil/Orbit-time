@@ -141,14 +141,16 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
                     .onFailure { error -> firstError = firstError ?: error.message }
             }
 
-            val existing = runCatching { profileRepository.getProfile(uid) }.getOrNull()
+            // The current photo is already known — it was loaded into this screen's own state
+            // when it opened (or just replaced above via a freshly-picked one) — so there's no
+            // need for an extra Firestore read here just to re-fetch a value already in hand.
             val profile = UserProfile(
                 uid = uid,
                 name = trimmedName,
                 email = authRepository.currentUser?.email ?: trimmedEmail,
                 role = role.trim(),
                 company = company.trim(),
-                photoBase64 = encodedPhoto ?: existing?.photoBase64.orEmpty(),
+                photoBase64 = encodedPhoto ?: _uiState.value.photoBase64,
                 shiftStart = ShiftTimeFormatter.format(shiftStart),
                 shiftEnd = ShiftTimeFormatter.format(shiftEnd),
             )
