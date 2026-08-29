@@ -285,11 +285,11 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 22.dp, vertical = 24.dp),
-            verticalAlignment = Alignment.Top,
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Box(modifier = Modifier.size(64.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
+            Box(modifier = Modifier.size(76.dp).clip(CircleShape).clickable(onClick = onAvatarClick)) {
                 val decodedPhoto = remember(photoBase64) {
                     photoBase64.takeIf { it.isNotBlank() }?.let { ImageCodec.decodeToImageBitmap(it) }
                 }
@@ -298,12 +298,12 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                         bitmap = decodedPhoto,
                         contentDescription = "Profile photo",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(64.dp).clip(CircleShape),
+                        modifier = Modifier.size(76.dp).clip(CircleShape),
                     )
                 } else {
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
+                            .size(76.dp)
                             .background(
                                 brush = Brush.linearGradient(
                                     colors = listOf(OrbitColors.purple500, OrbitColors.blue500),
@@ -314,7 +314,7 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                     ) {
                         Text(
                             text = uiState.initials,
-                            style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 20.sp),
+                            style = TextStyle(fontFamily = Manrope, fontWeight = FontWeight.Bold, fontSize = 23.sp),
                             color = Color.White,
                         )
                     }
@@ -329,7 +329,7 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 val shiftLabel = if (uiState.shiftStart != null && uiState.shiftEnd != null) {
                     val start = formatShiftTime(uiState.shiftStart)
                     val end = formatShiftTime(uiState.shiftEnd)
@@ -338,7 +338,7 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
                     null
                 }
                 ProfileHeroValuesRow(left = uiState.email.ifBlank { "—" }, right = shiftLabel ?: "—")
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 ProfileHeroValuesRow(left = uiState.role.ifBlank { "—" }, right = uiState.company.ifBlank { "—" })
             }
         }

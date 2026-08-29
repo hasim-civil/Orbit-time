@@ -220,7 +220,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.xl),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
@@ -243,7 +243,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             )
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         val statusText = when {
             uiState.isCompleted -> "Checked out"
@@ -262,7 +262,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
         Row(
             modifier = Modifier.height(IntrinsicSize.Max),
@@ -318,7 +318,7 @@ private fun HomeStatCell(label: String, value: String, modifier: Modifier = Modi
                 if (emphasized) OrbitColors.ink900 else OrbitColors.mist,
                 OrbitShapes.small,
             )
-            .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
+            .padding(horizontal = 10.dp, vertical = OrbitSpacing.md),
     ) {
         Text(
             text = label,
