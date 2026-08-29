@@ -89,7 +89,10 @@ private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
  * own screens (~24-26px) — matched here rather than via the shared OrbitSpacing.screenHorizontal
  * token, which auth screens still rely on. */
 private val DashboardHorizontalMargin = 14.dp
-private val DashboardSectionGap = 10.dp
+// Tightened from 10dp so the full Home screen (greeting + monthly + all 6 summary cards) fits
+// one viewport without scrolling on a normal phone — see the matching padding/spacer trims
+// throughout this file below.
+private val DashboardSectionGap = 8.dp
 
 // Text styles below are measured directly from the reference's inline styles for this screen —
 // the reference contrasts an editorial serif for headline moments (clock, month label, the two
@@ -171,8 +174,6 @@ fun HomeDashboardContent(
                         .padding(horizontal = DashboardHorizontalMargin)
                         .cardRiseEntrance(),
                 ) {
-                    Spacer(modifier = Modifier.height(OrbitSpacing.xs))
-
                     if (uiState.isLoading) {
                         LoadingBox(height = 140.dp)
                     } else {
@@ -227,7 +228,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
@@ -250,7 +251,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             )
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         val statusText = when {
             uiState.isCompleted -> "Checked out"
@@ -269,7 +270,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
             Text(text = statusText, style = OrbitTypography.bodySmall, color = statusColor)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         Row(
             modifier = Modifier.height(IntrinsicSize.Max),
@@ -325,7 +326,7 @@ private fun HomeStatCell(label: String, value: String, modifier: Modifier = Modi
                 if (emphasized) OrbitColors.ink900 else OrbitColors.mist,
                 OrbitShapes.small,
             )
-            .padding(horizontal = 10.dp, vertical = OrbitSpacing.md),
+            .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
     ) {
         Text(
             text = label,
@@ -358,7 +359,7 @@ private fun MonthlyAttendanceCard(
                 brush = Brush.linearGradient(colors = listOf(OrbitColors.void300, OrbitColors.void600, OrbitColors.void900)),
                 shape = OrbitShapes.card,
             )
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.md),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.sm),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -373,10 +374,10 @@ private fun MonthlyAttendanceCard(
             RangeModeToggle(selected = rangeMode, onSelected = onRangeModeSelected)
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+        Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 118.dp)
+            AttendanceRing(presentDays = summary.presentDays, ratePercent = summary.attendanceRatePercent, diameter = 108.dp)
 
             Spacer(modifier = Modifier.width(OrbitSpacing.lg))
 
@@ -547,7 +548,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.md),
+            .padding(OrbitSpacing.sm),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -563,7 +564,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             )
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.success, targetValue = summary.presentDays, label = "Present")
@@ -571,7 +572,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, targetValue = summary.lateDays, label = "Late")
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+        Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(
@@ -596,15 +597,15 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 
 /**
- * Each stat's "glass" formula is now a SINGLE flat, precomputed color — not a stack of two
- * translucent layers, not a gradient, not a brush of any kind — painted with exactly one
- * `.background()` call, so there is no layering or directionality left that could possibly read
- * as a "filled" zone next to a plainer one (i.e. a progress bar), which this card must never have.
- * [glassColor] is a pastel version of [accent] (blended toward white) at a single constant alpha,
- * computed once outside the draw call. A thin glass-edge border and the small icon chip in the
- * same accent round it out. Deliberately no Modifier.blur()/Modifier.shadow() here — both were
- * tried and each left a visible rectangular artifact on this exact component; the frosted look
- * comes purely from this one flat translucent fill instead.
+ * Glass look is two full-width, non-directional layers, never a left/right split (that would
+ * read as a progress bar): a flat accent-tinted base ([glassColor]) plus a top-to-bottom white
+ * [glassHighlight] sheen for the "inner highlight" — both painted edge-to-edge across the whole
+ * (now correctly [fillMaxWidth]'d) card, so neither can ever look like a "filled" zone next to a
+ * plainer one. A translucent border completes the frosted edge; the small icon chip stays the
+ * only saturated accent color, per the "colored dot only" rule. Deliberately no
+ * Modifier.blur()/Modifier.shadow() here — both were tried earlier and each left a visible
+ * rectangular artifact on this exact component; the frosted look comes purely from these flat/
+ * gradient translucent fills instead.
  */
 @Composable
 private fun SummaryCell(
@@ -622,7 +623,11 @@ private fun SummaryCell(
         animatedValue.animateTo(targetValue.toFloat(), tween(650, easing = FastOutSlowInEasing))
     }
 
-    val glassColor = remember(accent) { lerp(accent, Color.White, 0.55f).copy(alpha = 0.22f) }
+    val glassColor = remember(accent) { lerp(accent, Color.White, 0.45f).copy(alpha = 0.32f) }
+    val glassHighlight = remember {
+        Brush.verticalGradient(colors = listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0f)))
+    }
+    val borderColor = remember(accent) { lerp(accent, Color.White, 0.3f).copy(alpha = 0.55f) }
 
     Box(modifier = modifier) {
         // Very subtle drop shadow simulated as a soft, downward-offset duplicate shape —
@@ -632,7 +637,7 @@ private fun SummaryCell(
             modifier = Modifier
                 .matchParentSize()
                 .graphicsLayer { translationY = 2.dp.toPx() }
-                .background(Color.Black.copy(alpha = 0.08f), OrbitShapes.small),
+                .background(Color.Black.copy(alpha = 0.10f), OrbitShapes.small),
         )
 
         Column(
@@ -650,8 +655,9 @@ private fun SummaryCell(
                 .fillMaxWidth()
                 .clip(OrbitShapes.small)
                 .background(glassColor)
-                .border(1.dp, Color.White.copy(alpha = 0.45f), OrbitShapes.small)
-                .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
+                .background(glassHighlight)
+                .border(1.dp, borderColor, OrbitShapes.small)
+                .padding(horizontal = 10.dp, vertical = OrbitSpacing.xs),
         ) {
             Box(
                 modifier = Modifier
@@ -666,7 +672,7 @@ private fun SummaryCell(
             ) {
                 Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
             }
-            Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+            Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
             Text(text = format(animatedValue.value.toInt()), style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
             Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
             Text(text = label, style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
