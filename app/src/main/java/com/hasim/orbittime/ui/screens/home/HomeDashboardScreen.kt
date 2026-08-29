@@ -45,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -596,16 +595,17 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 
 /**
- * Each stat's "glass" formula: a single flat, uniform accent tint (never a gradient that fades
- * toward transparent across the card) so the whole surface reads as one continuous piece of
- * tinted glass — an earlier version faded the tint corner-to-corner, which against the section's
- * light background looked like a colored "filled" portion next to a plain "unfilled" one, i.e. a
- * progress bar, which is exactly the look this must not have. A top-anchored white sheen (fading
- * to fully transparent well before halfway down, over the constant tint rather than replacing
- * it) gives it a highlight without recreating that same illusion, plus a thin glass-edge border
- * and the small icon chip in the same accent. Deliberately no Modifier.blur()/Modifier.shadow()
- * here — both were tried and each left a visible rectangular artifact on this exact component;
- * the frosted look comes purely from layered translucent flat/gradient fills instead.
+ * Each stat's "glass" formula, deliberately with NO gradient or moving highlight anywhere in the
+ * background: a single flat, uniform accent tint plus a single flat, uniform white overlay (both
+ * a constant alpha across the whole card, no fade in any direction) so every pixel of the card
+ * carries the exact same surface color. Earlier versions faded the tint or the highlight from one
+ * edge to another — a corner-to-corner tint fade, then a top-to-bottom sheen fade, then a sweeping
+ * highlight band — and each one, however subtle, produced a brighter "filled" zone next to a
+ * plainer "unfilled" one, i.e. a progress-bar read, which this card must never have. A thin
+ * glass-edge border and the small icon chip in the same accent round it out. Deliberately no
+ * Modifier.blur()/Modifier.shadow() here — both were tried and each left a visible rectangular
+ * artifact on this exact component; the frosted look comes purely from these flat translucent
+ * fills instead.
  */
 @Composable
 private fun SummaryCell(
@@ -623,14 +623,6 @@ private fun SummaryCell(
         animatedValue.animateTo(targetValue.toFloat(), tween(650, easing = FastOutSlowInEasing))
     }
 
-    // Glass reflection: a soft diagonal highlight band that sweeps across the card once on
-    // first appearance, clipped to the same shape as the card itself (drawn as the last modifier
-    // in this chain, so it stays inside the .clip() below) — never a separate rectangular layer.
-    val sweepProgress = remember { Animatable(-0.4f) }
-    LaunchedEffect(Unit) {
-        sweepProgress.animateTo(1.4f, tween(900, delayMillis = 120, easing = FastOutSlowInEasing))
-    }
-
     Box(modifier = modifier) {
         // Very subtle drop shadow simulated as a soft, downward-offset duplicate shape —
         // deliberately not Modifier.shadow() (see note above: it left a visible rectangular
@@ -646,28 +638,8 @@ private fun SummaryCell(
             modifier = Modifier
                 .clip(OrbitShapes.small)
                 .background(accent.copy(alpha = 0.14f))
-                .background(
-                    brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.26f),
-                        0.4f to Color.White.copy(alpha = 0.06f),
-                        1f to Color.Transparent,
-                    ),
-                )
+                .background(Color.White.copy(alpha = 0.10f))
                 .border(1.dp, Color.White.copy(alpha = 0.45f), OrbitShapes.small)
-                .drawWithContent {
-                    drawContent()
-                    val bandWidth = size.width * 0.5f
-                    val centerX = sweepProgress.value * (size.width + bandWidth)
-                    drawRect(
-                        brush = Brush.linearGradient(
-                            0f to Color.Transparent,
-                            0.5f to Color.White.copy(alpha = 0.16f),
-                            1f to Color.Transparent,
-                            start = Offset(centerX - bandWidth, 0f),
-                            end = Offset(centerX + bandWidth, size.height),
-                        ),
-                    )
-                }
                 .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
         ) {
             Box(
