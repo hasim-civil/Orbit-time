@@ -23,6 +23,7 @@ import java.time.ZoneId
 object ShiftReminderScheduler {
     private const val PREFS_NAME = "shift_reminder"
     private const val KEY_SHIFT_START = "shift_start" // "HH:mm", java.time.LocalTime's default toString/parse format
+    private const val KEY_ENABLED = "enabled"
     private const val REMINDER_LEAD_MINUTES = 5L
     private const val REQUEST_CODE = 4201
 
@@ -33,6 +34,19 @@ object ShiftReminderScheduler {
      * Firestore or the rest of the app process to be alive. */
     fun savedShiftStart(context: Context): LocalTime? =
         prefs(context).getString(KEY_SHIFT_START, null)?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+
+    /** Whether the user wants the shift reminder at all — the Profile screen's "Shift reminders"
+     * toggle, defaulting to on. Read by every scheduling path (manual toggle, a shift-time
+     * change, the receiver re-arming itself, and boot) so there is a single place that decides
+     * whether an alarm should exist. */
+    fun isEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_ENABLED, true)
+
+    /** Called from the Profile screen's toggle — persists the preference and immediately arms
+     * or cancels the alarm to match, rather than waiting for the next shift-time reload. */
+    fun setEnabled(context: Context, enabled: Boolean) {
+        prefs(context).edit { putBoolean(KEY_ENABLED, enabled) }
+        if (enabled) scheduleNext(context) else cancel(context)
+    }
 
     /** Called whenever the user's real shift start is loaded or changes — persists it and
      * (re)arms the next reminder for it, replacing any previously scheduled one so a shift-time
@@ -52,8 +66,16 @@ object ShiftReminderScheduler {
      * occurrence itself once this one fires, rather than using a repeating alarm — AlarmManager's
      * repeating alarms are inexact and drift, which would slowly detach the reminder from the
      * user's real shift time.
+     *
+     * Bails out (cancelling any stale alarm) when the "Shift reminders" toggle is off, so every
+     * caller — a shift-time change, the receiver's self re-arm, and the boot receiver — respects
+     * it without needing its own check.
      */
     fun scheduleNext(context: Context, shiftStart: LocalTime? = savedShiftStart(context)) {
+        if (!isEnabled(context)) {
+            cancel(context)
+            return
+        }
         if (shiftStart == null) return
         val zone = ZoneId.systemDefault()
         val now = LocalDateTime.now(zone)

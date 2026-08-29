@@ -32,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -50,6 +52,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -203,6 +207,8 @@ fun ProfileContent(
                         onClick = onAddLeaveClick,
                     )
 
+                    ShiftReminderRow()
+
                     SignOutRow(onClick = { showSignOutConfirm = true })
 
                     FooterCredits()
@@ -265,12 +271,15 @@ private fun ProfileHeaderCard(uiState: ProfileUiState, photoBase64: String, onAv
             label = "breathe",
         )
         Box(
+            // Sized to stay within the header Row's own content height (avatar 76dp + 16dp
+            // vertical padding = 108dp) — a larger fixed size here would force the card's Box
+            // to grow to match it, leaving empty space below the actual profile content.
             modifier = Modifier
-                .size(150.dp)
+                .size(96.dp)
                 .align(Alignment.TopEnd)
                 .graphicsLayer {
-                    translationX = 40.dp.toPx()
-                    translationY = (-60).dp.toPx()
+                    translationX = 26.dp.toPx()
+                    translationY = (-38).dp.toPx()
                     alpha = 0.55f + breathe.value * 0.45f
                 }
                 .background(
@@ -403,6 +412,51 @@ private fun ProfileMenuRow(
             Text(text = hint, style = RowHintStyle, color = OrbitColors.slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(text = "›", style = RowLabelStyle, color = OrbitColors.slate300)
+    }
+}
+
+/** Toggles the background "shift starts in 5 minutes" reminder — reads/writes
+ * [ShiftReminderScheduler]'s own SharedPreferences flag directly rather than adding a parallel
+ * settings store, since that's already the single source of truth every scheduling path
+ * (a shift-time change, the receiver's self re-arm, boot) checks before arming an alarm. */
+@Composable
+private fun ShiftReminderRow() {
+    val context = LocalContext.current
+    var enabled by remember { mutableStateOf(ShiftReminderScheduler.isEnabled(context)) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MenuRowShape)
+            .background(OrbitColors.cream50.copy(alpha = 0.96f))
+            .padding(horizontal = 17.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "Shift reminders", style = RowLabelStyle, color = OrbitColors.ink900)
+            Text(
+                text = "Notify 5 minutes before shift start",
+                style = RowHintStyle,
+                color = OrbitColors.slate600,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Switch(
+            checked = enabled,
+            onCheckedChange = { checked ->
+                enabled = checked
+                ShiftReminderScheduler.setEnabled(context, checked)
+            },
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.White,
+                checkedTrackColor = OrbitColors.violet600,
+                uncheckedThumbColor = OrbitColors.cream50,
+                uncheckedTrackColor = OrbitColors.slate300,
+                uncheckedBorderColor = Color.Transparent,
+            ),
+        )
     }
 }
 
