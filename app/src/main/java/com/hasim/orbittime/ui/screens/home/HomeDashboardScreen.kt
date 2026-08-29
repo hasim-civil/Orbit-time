@@ -85,7 +85,7 @@ private val AttendanceRingSwayEasing = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
  * own screens (~24-26px) — matched here rather than via the shared OrbitSpacing.screenHorizontal
  * token, which auth screens still rely on. */
 private val DashboardHorizontalMargin = 14.dp
-private val DashboardSectionGap = 13.dp
+private val DashboardSectionGap = 10.dp
 
 // Text styles below are measured directly from the reference's inline styles for this screen —
 // the reference contrasts an editorial serif for headline moments (clock, month label, the two
@@ -164,7 +164,7 @@ fun HomeDashboardContent(
                         .padding(horizontal = DashboardHorizontalMargin)
                         .cardRiseEntrance(),
                 ) {
-                    Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+                    Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
                     if (uiState.isLoading) {
                         LoadingBox(height = 140.dp)
@@ -220,7 +220,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.xl),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
     ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
@@ -351,7 +351,7 @@ private fun MonthlyAttendanceCard(
                 brush = Brush.linearGradient(colors = listOf(OrbitColors.void300, OrbitColors.void600, OrbitColors.void900)),
                 shape = OrbitShapes.card,
             )
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.lg),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -540,7 +540,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.lg),
+            .padding(OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -587,11 +587,15 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 
 /**
- * Reference's per-stat "glass" formula, ported directly: a diagonal tint-to-white gradient
- * fill, a 1dp border and a small icon chip (a rounded tile in the same accent, holding a
- * solid dot of it) — all derived from one [accent] color rather than the flat pastel tokens
- * this cell used before, so each stat still reads as its own color without six near-identical
- * flat swatches.
+ * Reference's per-stat "glass" formula: a diagonal accent-tinted glass fill that never fully
+ * vanishes to transparent (so it stays one continuous tinted surface, not a patch fading to
+ * nothing), a soft white sheen layered on top for a frosted highlight/reflection, a bright thin
+ * glass-edge border, and a small icon chip (a rounded tile in the same accent, holding a solid
+ * dot of it) — all derived from one [accent] color rather than the flat pastel tokens this cell
+ * used before, so each stat still reads as its own color without six near-identical flat
+ * swatches. Deliberately no Modifier.blur()/Modifier.shadow() here — both were tried and each
+ * left a visible rectangular artifact on this exact component; the frosted look comes purely
+ * from layered translucent gradients instead.
  */
 @Composable
 private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label: String) {
@@ -600,12 +604,19 @@ private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label:
             .clip(OrbitShapes.small)
             .background(
                 brush = Brush.linearGradient(
-                    0f to accent.copy(alpha = 0.12f),
-                    0.42f to accent.copy(alpha = 0.04f),
+                    0f to accent.copy(alpha = 0.22f),
+                    0.5f to accent.copy(alpha = 0.10f),
+                    1f to accent.copy(alpha = 0.05f),
+                ),
+            )
+            .background(
+                brush = Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.40f),
+                    0.5f to Color.White.copy(alpha = 0.12f),
                     1f to Color.Transparent,
                 ),
             )
-            .border(1.dp, accent.copy(alpha = 0.16f), OrbitShapes.small)
+            .border(1.dp, Color.White.copy(alpha = 0.55f), OrbitShapes.small)
             .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
     ) {
         Box(

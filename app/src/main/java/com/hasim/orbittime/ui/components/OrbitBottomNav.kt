@@ -33,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -248,13 +247,21 @@ private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier
         ) {
             OrbitRingGlyph(diameter = ButtonDiameter - 16.dp, orbitAngleDegrees = orbitAngle)
 
-            // The pulsing white "core" at the ring's center, with a soft lavender glow.
+            // The pulsing white "core" at the ring's center, with a soft lavender glow — a
+            // multi-stop radial fade rather than Modifier.blur(), same reasoning as the button's
+            // own outer glow: blur promotes this Box to its own hardware layer, and that layer's
+            // square bounds can show through as a faint rectangle around the small glow.
             Box(
                 modifier = Modifier
                     .size(18.dp)
                     .graphicsLayer { alpha = coreAlpha * 0.6f }
-                    .blur(6.dp)
-                    .background(Color(0xFFD6C4FF), CircleShape),
+                    .background(
+                        brush = Brush.radialGradient(
+                            0f to Color(0xFFD6C4FF),
+                            0.5f to Color(0xFFD6C4FF).copy(alpha = 0.5f),
+                            1f to Color.Transparent,
+                        ),
+                    ),
             )
             Box(
                 modifier = Modifier
