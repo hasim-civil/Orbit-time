@@ -50,6 +50,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
@@ -564,7 +565,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 
         Spacer(modifier = Modifier.height(OrbitSpacing.md))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.success, targetValue = summary.presentDays, label = "Present")
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.danger, targetValue = summary.absentDays, label = "Absent")
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, targetValue = summary.lateDays, label = "Late")
@@ -572,7 +573,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 
         Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(
                 modifier = Modifier.weight(1f),
                 accent = OrbitColors.accent,
@@ -595,17 +596,15 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 
 /**
- * Each stat's "glass" formula, deliberately with NO gradient or moving highlight anywhere in the
- * background: a single flat, uniform accent tint plus a single flat, uniform white overlay (both
- * a constant alpha across the whole card, no fade in any direction) so every pixel of the card
- * carries the exact same surface color. Earlier versions faded the tint or the highlight from one
- * edge to another — a corner-to-corner tint fade, then a top-to-bottom sheen fade, then a sweeping
- * highlight band — and each one, however subtle, produced a brighter "filled" zone next to a
- * plainer "unfilled" one, i.e. a progress-bar read, which this card must never have. A thin
- * glass-edge border and the small icon chip in the same accent round it out. Deliberately no
- * Modifier.blur()/Modifier.shadow() here — both were tried and each left a visible rectangular
- * artifact on this exact component; the frosted look comes purely from these flat translucent
- * fills instead.
+ * Each stat's "glass" formula is now a SINGLE flat, precomputed color — not a stack of two
+ * translucent layers, not a gradient, not a brush of any kind — painted with exactly one
+ * `.background()` call, so there is no layering or directionality left that could possibly read
+ * as a "filled" zone next to a plainer one (i.e. a progress bar), which this card must never have.
+ * [glassColor] is a pastel version of [accent] (blended toward white) at a single constant alpha,
+ * computed once outside the draw call. A thin glass-edge border and the small icon chip in the
+ * same accent round it out. Deliberately no Modifier.blur()/Modifier.shadow() here — both were
+ * tried and each left a visible rectangular artifact on this exact component; the frosted look
+ * comes purely from this one flat translucent fill instead.
  */
 @Composable
 private fun SummaryCell(
@@ -623,6 +622,8 @@ private fun SummaryCell(
         animatedValue.animateTo(targetValue.toFloat(), tween(650, easing = FastOutSlowInEasing))
     }
 
+    val glassColor = remember(accent) { lerp(accent, Color.White, 0.55f).copy(alpha = 0.22f) }
+
     Box(modifier = modifier) {
         // Very subtle drop shadow simulated as a soft, downward-offset duplicate shape —
         // deliberately not Modifier.shadow() (see note above: it left a visible rectangular
@@ -637,8 +638,7 @@ private fun SummaryCell(
         Column(
             modifier = Modifier
                 .clip(OrbitShapes.small)
-                .background(accent.copy(alpha = 0.14f))
-                .background(Color.White.copy(alpha = 0.10f))
+                .background(glassColor)
                 .border(1.dp, Color.White.copy(alpha = 0.45f), OrbitShapes.small)
                 .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
         ) {
