@@ -25,15 +25,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -167,20 +166,28 @@ fun HomeDashboardContent(
             )
 
             OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
+                // Not scrollable: the section gaps below are two `weight(1f)` spacers (a
+                // scrollable column measures children with infinite height, which weight can't
+                // resolve against) so any extra room this bounded box has beyond the three
+                // fixed-size cards is split evenly between them, instead of collecting as one
+                // dead strip under the last card. On a phone too short for the cards to fit at
+                // their current size, both spacers simply collapse to their DashboardSectionGap
+                // floor rather than clipping content.
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = DashboardHorizontalMargin)
                         .cardRiseEntrance(),
                 ) {
+                    Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+
                     if (uiState.isLoading) {
                         LoadingBox(height = 140.dp)
                     } else {
                         GreetingCard(userDisplayName, uiState)
                     }
 
-                    Spacer(modifier = Modifier.height(DashboardSectionGap))
+                    Spacer(modifier = Modifier.weight(1f).heightIn(min = DashboardSectionGap))
 
                     if (uiState.summaryErrorMessage != null) {
                         InlineBanner(text = uiState.summaryErrorMessage, color = OrbitColors.danger, background = OrbitColors.dangerBg)
@@ -202,10 +209,11 @@ fun HomeDashboardContent(
                             rangeMode = uiState.rangeMode,
                             onRangeModeSelected = onRangeModeSelected,
                         )
-                        Spacer(modifier = Modifier.height(DashboardSectionGap))
+                        Spacer(modifier = Modifier.weight(1f).heightIn(min = DashboardSectionGap))
                         AttendanceSummaryCard(summary = uiState.summary, rangeMode = uiState.rangeMode)
                     }
 
+                    Spacer(modifier = Modifier.height(DashboardSectionGap))
                     Spacer(modifier = Modifier.height(OrbitFloatingNavContentClearance))
                 }
             }
