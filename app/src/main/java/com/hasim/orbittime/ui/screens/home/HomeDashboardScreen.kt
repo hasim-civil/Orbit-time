@@ -42,7 +42,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -598,19 +597,13 @@ private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 private fun SummaryCell(modifier: Modifier, accent: Color, value: String, label: String) {
     Column(
         modifier = modifier
-            .shadow(
-                elevation = 6.dp,
-                shape = OrbitShapes.small,
-                ambientColor = accent.copy(alpha = 0.25f),
-                spotColor = accent.copy(alpha = 0.25f),
-            )
+            .clip(OrbitShapes.small)
             .background(
                 brush = Brush.linearGradient(
                     0f to accent.copy(alpha = 0.12f),
                     0.42f to accent.copy(alpha = 0.04f),
                     1f to Color.Transparent,
                 ),
-                shape = OrbitShapes.small,
             )
             .border(1.dp, accent.copy(alpha = 0.16f), OrbitShapes.small)
             .padding(horizontal = 10.dp, vertical = OrbitSpacing.sm),
