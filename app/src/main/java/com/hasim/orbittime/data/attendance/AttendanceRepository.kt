@@ -26,6 +26,11 @@ class AttendanceRepository(
     private fun dayDoc(uid: String, date: String) =
         firestore.collection("users").document(uid).collection("attendance").document(date)
 
+    /** One-shot read (not a live listener) — used by the background shift-reminder receiver,
+     * which only needs a single check and shouldn't hold a Firestore listener open. */
+    suspend fun getRecord(uid: String, date: String): AttendanceRecord? =
+        dayDoc(uid, date).get().await().toObject<AttendanceRecord>()
+
     /** Real-time view of one day's record; reflects Firestore's local cache immediately, even offline. */
     fun observeRecord(uid: String, date: String): Flow<AttendanceRecord?> = callbackFlow {
         val registration = dayDoc(uid, date).addSnapshotListener { snapshot, error ->

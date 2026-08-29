@@ -9,6 +9,7 @@ import com.hasim.orbittime.data.account.AccountDeletionRequiresReauthException
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.user.UserProfile
 import com.hasim.orbittime.data.user.UserProfileRepository
+import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -215,6 +216,7 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
 
             accountDeletionRepository.deleteAccount(uid)
                 .onSuccess {
+                    ShiftReminderScheduler.cancel(getApplication())
                     _uiState.update { it.copy(isDeletingAccount = false) }
                     onDeleted()
                 }

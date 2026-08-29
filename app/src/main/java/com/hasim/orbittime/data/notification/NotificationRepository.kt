@@ -44,6 +44,21 @@ class NotificationRepository(
         Unit
     }
 
+    /**
+     * Creates a notification under a caller-chosen, deterministic [id] — a no-op if one with that
+     * id already exists. Used for facts that get re-evaluated repeatedly (a specific missed date,
+     * a given calendar month's late-arrival allowance) so the same fact is never reported twice,
+     * and re-checking never resets an already-read notification back to unread.
+     */
+    suspend fun createIfMissing(uid: String, id: String, notification: UserNotification): Result<Unit> = runCatching {
+        val doc = collection(uid).document(id)
+        val exists = doc.get().await().exists()
+        if (!exists) {
+            doc.set(notification.copy(id = id, createdAt = Timestamp.now())).await()
+        }
+        Unit
+    }
+
     suspend fun markRead(uid: String, id: String): Result<Unit> = runCatching {
         collection(uid).document(id).update("read", true).await()
         Unit

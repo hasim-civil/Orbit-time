@@ -1,7 +1,13 @@
 package com.hasim.orbittime.ui.screens.main
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -9,8 +15,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.ui.components.OrbitTab
 import com.hasim.orbittime.ui.screens.comingsoon.ComingSoonScreen
 import com.hasim.orbittime.ui.screens.home.HomeDashboardScreen
@@ -46,6 +55,19 @@ fun MainScreen(
     val attendanceViewModel: AttendanceViewModel = viewModel()
     val chromeViewModel: MainChromeViewModel = viewModel()
     val chromeState by chromeViewModel.uiState.collectAsState()
+
+    // The shift reminder is a real system notification (Prompt 10), so on API 33+ it needs the
+    // runtime POST_NOTIFICATIONS permission — requested once, here, rather than only at the
+    // moment a notification is about to fire (which could be while the app isn't even open).
+    val context = LocalContext.current
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            if (!granted) notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 
     BackHandler(enabled = showNotifications) { showNotifications = false }
 
@@ -104,6 +126,7 @@ fun MainScreen(
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
             onSignOutClick = {
+                ShiftReminderScheduler.cancel(context)
                 authRepository.signOut()
                 onLoggedOut()
             },
