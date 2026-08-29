@@ -332,16 +332,22 @@ private fun parseTimeInputs(hourText: String, minuteText: String, isAm: Boolean)
 }
 
 /** "Edit today's time" — the reference's editOpen sheet, rebuilt with the Hour/Minute/AM-PM
- * controls this app uses instead of its single text input. */
+ * controls this app uses instead of its single text input.
+ *
+ * [initialCheckOut] is null while the user is still checked in (no real check-out time exists
+ * yet) — the Check out row is hidden entirely rather than prefilled with a fake "now" value, so
+ * there is never a checkout to accidentally save before the user has actually punched out.
+ */
 @Composable
 fun EditTimeModal(
     initialCheckIn: LocalTime,
-    initialCheckOut: LocalTime,
-    onConfirm: (LocalTime, LocalTime, AttendanceLocation?) -> Unit,
+    initialCheckOut: LocalTime?,
+    onConfirm: (LocalTime, LocalTime?, AttendanceLocation?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val hasCheckOut = initialCheckOut != null
     val (inHour0, inMinute0, inAm0) = initialCheckIn.to12HourParts()
-    val (outHour0, outMinute0, outAm0) = initialCheckOut.to12HourParts()
+    val (outHour0, outMinute0, outAm0) = (initialCheckOut ?: LocalTime.NOON).to12HourParts()
     var inHour by remember { mutableStateOf(inHour0.toString()) }
     var inMinute by remember { mutableStateOf(inMinute0.toString().padStart(2, '0')) }
     var inAm by remember { mutableStateOf(inAm0) }
@@ -351,12 +357,14 @@ fun EditTimeModal(
     var location by remember { mutableStateOf<AttendanceLocation?>(null) }
 
     val checkIn = parseTimeInputs(inHour, inMinute, inAm)
-    val checkOut = parseTimeInputs(outHour, outMinute, outAm)
-    val valid = checkIn != null && checkOut != null
+    val checkOut = if (hasCheckOut) parseTimeInputs(outHour, outMinute, outAm) else null
+    val valid = checkIn != null && (!hasCheckOut || checkOut != null)
 
     PunchModalCard(title = "Edit today's time", subtitle = "Type today's punch times and pick AM or PM.", onDismiss = onDismiss) {
         TimeFieldRow("CHECK IN", inHour, inMinute, inAm, { inHour = it }, { inMinute = it }, { inAm = it })
-        TimeFieldRow("CHECK OUT", outHour, outMinute, outAm, { outHour = it }, { outMinute = it }, { outAm = it })
+        if (hasCheckOut) {
+            TimeFieldRow("CHECK OUT", outHour, outMinute, outAm, { outHour = it }, { outMinute = it }, { outAm = it })
+        }
         LocationPillRow(selected = location, onSelected = { location = it })
         ModalActionRow(
             cancelLabel = "Cancel",
@@ -365,7 +373,7 @@ fun EditTimeModal(
             confirmBackground = OrbitColors.violet600,
             confirmContent = OrbitColors.cream50,
             onCancel = onDismiss,
-            onConfirm = { if (checkIn != null && checkOut != null) onConfirm(checkIn, checkOut, location) },
+            onConfirm = { if (checkIn != null && (!hasCheckOut || checkOut != null)) onConfirm(checkIn, checkOut, location) },
         )
     }
 }

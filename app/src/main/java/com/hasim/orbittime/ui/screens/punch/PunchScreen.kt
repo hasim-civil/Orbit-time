@@ -59,7 +59,6 @@ import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import kotlinx.coroutines.delay
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -211,7 +210,7 @@ fun PunchContent(
             ModalScrim(onDismiss = { showEditTimeDialog = false }) {
                 EditTimeModal(
                     initialCheckIn = uiState.checkInAt.atZone(zone).toLocalTime(),
-                    initialCheckOut = (uiState.checkOutAt ?: Instant.now()).atZone(zone).toLocalTime(),
+                    initialCheckOut = uiState.checkOutAt?.atZone(zone)?.toLocalTime(),
                     onConfirm = { checkIn, checkOut, location ->
                         onEditTime(checkIn, checkOut, location)
                         showEditTimeDialog = false
