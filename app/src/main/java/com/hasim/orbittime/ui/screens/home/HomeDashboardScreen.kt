@@ -596,15 +596,16 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
 private val SummaryCellChipShape = RoundedCornerShape(7.dp)
 
 /**
- * Reference's per-stat "glass" formula: a diagonal accent-tinted glass fill that never fully
- * vanishes to transparent (so it stays one continuous tinted surface, not a patch fading to
- * nothing), a soft white sheen layered on top for a frosted highlight/reflection, a bright thin
- * glass-edge border, and a small icon chip (a rounded tile in the same accent, holding a solid
- * dot of it) — all derived from one [accent] color rather than the flat pastel tokens this cell
- * used before, so each stat still reads as its own color without six near-identical flat
- * swatches. Deliberately no Modifier.blur()/Modifier.shadow() here — both were tried and each
- * left a visible rectangular artifact on this exact component; the frosted look comes purely
- * from layered translucent gradients instead.
+ * Each stat's "glass" formula: a single flat, uniform accent tint (never a gradient that fades
+ * toward transparent across the card) so the whole surface reads as one continuous piece of
+ * tinted glass — an earlier version faded the tint corner-to-corner, which against the section's
+ * light background looked like a colored "filled" portion next to a plain "unfilled" one, i.e. a
+ * progress bar, which is exactly the look this must not have. A top-anchored white sheen (fading
+ * to fully transparent well before halfway down, over the constant tint rather than replacing
+ * it) gives it a highlight without recreating that same illusion, plus a thin glass-edge border
+ * and the small icon chip in the same accent. Deliberately no Modifier.blur()/Modifier.shadow()
+ * here — both were tried and each left a visible rectangular artifact on this exact component;
+ * the frosted look comes purely from layered translucent flat/gradient fills instead.
  */
 @Composable
 private fun SummaryCell(
@@ -644,21 +645,15 @@ private fun SummaryCell(
         Column(
             modifier = Modifier
                 .clip(OrbitShapes.small)
-                .background(
-                    brush = Brush.linearGradient(
-                        0f to accent.copy(alpha = 0.22f),
-                        0.5f to accent.copy(alpha = 0.10f),
-                        1f to accent.copy(alpha = 0.05f),
-                    ),
-                )
+                .background(accent.copy(alpha = 0.14f))
                 .background(
                     brush = Brush.verticalGradient(
-                        0f to Color.White.copy(alpha = 0.40f),
-                        0.5f to Color.White.copy(alpha = 0.12f),
+                        0f to Color.White.copy(alpha = 0.26f),
+                        0.4f to Color.White.copy(alpha = 0.06f),
                         1f to Color.Transparent,
                     ),
                 )
-                .border(1.dp, Color.White.copy(alpha = 0.55f), OrbitShapes.small)
+                .border(1.dp, Color.White.copy(alpha = 0.45f), OrbitShapes.small)
                 .drawWithContent {
                     drawContent()
                     val bandWidth = size.width * 0.5f
