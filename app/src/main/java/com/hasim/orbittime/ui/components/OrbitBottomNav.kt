@@ -76,7 +76,7 @@ private val NavComponentHeight = ButtonAbovePill + PillHeight
 
 /** The reference's fixed side/bottom margins for the floating pill. */
 private val NavHorizontalMargin = 14.dp
-private val NavBottomMargin = 25.dp
+private val NavBottomMargin = 12.dp
 
 /** The reference's bottom fade scrim height (`104px`), easing scrolled content into the nav. */
 private val NavScrimHeight = 102.dp
@@ -211,12 +211,22 @@ private fun OrbitCenterButton(onClick: () -> Unit, modifier: Modifier = Modifier
     )
 
     Box(modifier = modifier.size(ButtonGlowDiameter), contentAlignment = Alignment.Center) {
+        // A soft multi-stop radial fade rather than Modifier.blur(): blur promotes this Box to
+        // its own hardware layer and, on plenty of devices, that layer's square bounds show
+        // through as a faint rectangular halo around the circular glow. A gradient that already
+        // tapers to fully transparent needs no blur to look soft, and never has square edges.
         val glowColor = lerp(Color(0xFF6D3BF5).copy(alpha = 0.22f), OrbitColors.purple600.copy(alpha = 0.44f), glowT)
         Box(
             modifier = Modifier
                 .size(ButtonGlowDiameter)
-                .blur(17.dp)
-                .background(brush = Brush.radialGradient(colors = listOf(glowColor, Color.Transparent)), shape = CircleShape),
+                .background(
+                    brush = Brush.radialGradient(
+                        0f to glowColor,
+                        0.4f to glowColor.copy(alpha = glowColor.alpha * 0.5f),
+                        0.7f to glowColor.copy(alpha = glowColor.alpha * 0.18f),
+                        1f to Color.Transparent,
+                    ),
+                ),
         )
 
         Box(
