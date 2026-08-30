@@ -21,19 +21,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.ui.components.OrbitTab
-import com.hasim.orbittime.ui.screens.comingsoon.ComingSoonScreen
 import com.hasim.orbittime.ui.screens.home.HomeDashboardScreen
 import com.hasim.orbittime.ui.screens.notifications.NotificationsScreen
 import com.hasim.orbittime.ui.screens.profile.ProfileScreen
 import com.hasim.orbittime.ui.screens.punch.AttendanceViewModel
 import com.hasim.orbittime.ui.screens.punch.PunchScreen
+import com.hasim.orbittime.ui.screens.reports.ReportsScreen
 import com.hasim.orbittime.ui.screens.timesheet.TimesheetScreen
 import com.hasim.orbittime.util.UserDisplay
 
 /**
  * Owns which bottom-nav tab is showing. Home and Punch share one
  * [AttendanceViewModel] since they render the same underlying attendance
- * record; Reports is still out of scope for this phase.
+ * record; Reports owns its own [com.hasim.orbittime.ui.screens.reports.ReportsViewModel]
+ * since it reads a much wider date range purely for analysis.
  *
  * Notifications is reached by tapping the bell from any tab (not a bottom-nav
  * destination itself), so it's tracked as its own overlay flag rather than an
@@ -112,12 +113,10 @@ fun MainScreen(
             hasNotification = chromeState.hasUnreadNotifications,
             onBellClick = { showNotifications = true },
         )
-        OrbitTab.REPORTS -> ComingSoonScreen(
-            title = "Reports",
+        OrbitTab.REPORTS -> ReportsScreen(
             userInitials = userInitials,
             selectedTab = selectedTab,
             onTabSelected = { selectedTab = it },
-            modifier = modifier,
             photoBase64 = chromeState.photoBase64,
             hasNotification = chromeState.hasUnreadNotifications,
             onBellClick = { showNotifications = true },
