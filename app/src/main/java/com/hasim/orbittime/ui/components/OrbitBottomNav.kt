@@ -99,8 +99,20 @@ fun OrbitFloatingNavHost(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     modifier: Modifier = Modifier,
+    // Every screen but Home passes this implicitly and keeps the reference's original 12dp
+    // margin. Home's content is a fixed, non-scrolling stack (see HomeDashboardContent), so on a
+    // screen taller than that stack, the pill's position can't be reached at all by adjusting
+    // Home's own layout — the pill floats independently of content height. Letting Home pass a
+    // larger margin here is the only way to bring it closer to the Attendance Summary card
+    // without touching this shared component's behavior anywhere else.
+    pillBottomMargin: Dp = NavBottomMargin,
     content: @Composable () -> Unit,
 ) {
+    // How much higher the pill sits than the reference's own 12dp — the fade scrim grows by the
+    // same amount so the pill/button stay in the same relative position within it instead of the
+    // button's top poking out above the scrim into the plain background behind it.
+    val pillLift = (pillBottomMargin - NavBottomMargin).coerceAtLeast(0.dp)
+
     Box(modifier = modifier.fillMaxSize()) {
         content()
 
@@ -108,7 +120,7 @@ fun OrbitFloatingNavHost(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(NavScrimHeight)
+                .height(NavScrimHeight + pillLift)
                 .background(
                     brush = Brush.verticalGradient(
                         0f to OrbitColors.cream100.copy(alpha = 0f),
@@ -123,7 +135,7 @@ fun OrbitFloatingNavHost(
             onTabSelected = onTabSelected,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(start = NavHorizontalMargin, end = NavHorizontalMargin, bottom = NavBottomMargin),
+                .padding(start = NavHorizontalMargin, end = NavHorizontalMargin, bottom = pillBottomMargin),
         )
     }
 }
