@@ -95,14 +95,6 @@ private val DashboardHorizontalMargin = 14.dp
 private val DashboardMinSectionGap = 8.dp
 private val DashboardMaxSectionGap = 16.dp
 
-// Home's content is a fixed, non-scrolling stack (see HomeDashboardContent) — unlike every other
-// tab, so any extra room past the last card can't be closed by changing Home's own spacing (the
-// nav pill floats independently of content height; a scrollable screen's trailing clearance
-// controls how far it scrolls behind the pill, but a non-scrolling one's does not change where
-// the pill sits at all). Passing a larger pillBottomMargin here brings the pill closer to the
-// Attendance Summary card without moving the pill on any other screen.
-private val HomeNavBottomMargin = 32.dp
-
 // Text styles below are measured directly from the reference's inline styles for this screen —
 // the reference contrasts an editorial serif for headline moments (clock, month label, the two
 // big ring numbers) against Manrope for everything else, which the shared OrbitTypography scale
@@ -175,12 +167,7 @@ fun HomeDashboardContent(
                 onAvatarClick = { onTabSelected(OrbitTab.PROFILE) },
             )
 
-            OrbitFloatingNavHost(
-                selectedTab = selectedTab,
-                onTabSelected = onTabSelected,
-                modifier = Modifier.weight(1f),
-                pillBottomMargin = HomeNavBottomMargin,
-            ) {
+            OrbitFloatingNavHost(selectedTab = selectedTab, onTabSelected = onTabSelected, modifier = Modifier.weight(1f)) {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                     // A small, fixed share of the ACTUAL available height (not a flat hardcoded
                     // constant, and not an unbounded weight-fill spacer — the latter split 100%
