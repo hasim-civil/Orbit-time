@@ -381,7 +381,7 @@ private fun MonthlyAttendanceCard(
                 brush = Brush.linearGradient(colors = listOf(OrbitColors.void300, OrbitColors.void600, OrbitColors.void900)),
                 shape = OrbitShapes.card,
             )
-            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.sm),
+            .padding(horizontal = OrbitSpacing.xl, vertical = OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -589,7 +589,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(OrbitSpacing.sm),
+            .padding(horizontal = OrbitSpacing.sm, vertical = OrbitSpacing.md),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
@@ -613,7 +613,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.warning, targetValue = summary.lateDays, label = "Late")
         }
 
-        Spacer(modifier = Modifier.height(OrbitSpacing.xs))
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
             SummaryCell(
