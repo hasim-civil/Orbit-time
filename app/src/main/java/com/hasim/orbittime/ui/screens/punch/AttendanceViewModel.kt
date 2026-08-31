@@ -66,7 +66,7 @@ data class PunchUiState(
 
 /** Which punch just succeeded — drives the ~1s custom success overlay, never shown until the
  * Firestore write it reports on has actually completed. */
-enum class PunchSuccessKind { CHECK_IN, CHECK_OUT }
+enum class PunchSuccessKind { CHECK_IN, CHECK_OUT, PAST_ATTENDANCE_ADDED }
 
 private const val TICK_INTERVAL_MS = 30_000L
 
@@ -426,7 +426,9 @@ class AttendanceViewModel(
                 checkInAt = checkInTime.toTimestamp(date),
                 checkOutAt = checkOutTime.toTimestamp(date),
                 location = location,
-            ).onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
+            )
+                .onSuccess { _uiState.update { it.copy(successMessage = PunchSuccessKind.PAST_ATTENDANCE_ADDED) } }
+                .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
     }
 

@@ -60,8 +60,16 @@ fun PunchSuccessOverlay(kind: PunchSuccessKind?, modifier: Modifier = Modifier) 
         exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.92f, animationSpec = tween(260)),
         modifier = modifier,
     ) {
-        val title = if (kind == PunchSuccessKind.CHECK_IN) "Checked in" else "Checked out"
-        val subtitle = if (kind == PunchSuccessKind.CHECK_IN) "Have a great shift" else "Great work today"
+        val title = when (kind) {
+            PunchSuccessKind.CHECK_IN -> "Checked in"
+            PunchSuccessKind.CHECK_OUT -> "Checked out"
+            PunchSuccessKind.PAST_ATTENDANCE_ADDED, null -> "Attendance added"
+        }
+        val subtitle = when (kind) {
+            PunchSuccessKind.CHECK_IN -> "Have a great shift"
+            PunchSuccessKind.CHECK_OUT -> "Great work today"
+            PunchSuccessKind.PAST_ATTENDANCE_ADDED, null -> "Your entry has been saved"
+        }
 
         Box(
             modifier = Modifier
