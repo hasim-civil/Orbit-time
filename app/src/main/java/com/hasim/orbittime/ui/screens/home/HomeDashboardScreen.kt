@@ -589,7 +589,7 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.card)
-            .padding(horizontal = OrbitSpacing.sm, vertical = OrbitSpacing.md),
+            .padding(start = OrbitSpacing.sm, end = OrbitSpacing.sm, top = OrbitSpacing.md, bottom = OrbitSpacing.xxl),
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
