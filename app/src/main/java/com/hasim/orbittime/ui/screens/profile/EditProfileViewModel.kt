@@ -178,6 +178,11 @@ class EditProfileViewModel(application: Application) : AndroidViewModel(applicat
             }
             if (succeeded) {
                 pendingPhotoUri = null
+                // Re-arms the reminder for the new shift start immediately — previously this only
+                // happened indirectly, via AttendanceViewModel's own profile listener happening to
+                // be alive and catching this same write, which left the alarm still armed for the
+                // old shift time (or not re-armed at all) whenever that path didn't fire in time.
+                ShiftReminderScheduler.schedule(getApplication(), shiftStart)
                 onSaved()
             }
         }
