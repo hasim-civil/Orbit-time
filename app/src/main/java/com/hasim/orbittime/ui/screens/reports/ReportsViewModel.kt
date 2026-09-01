@@ -43,6 +43,14 @@ data class ReportsUiState(
     /** True once there's at least one real check-in anywhere in the fetched range — before that,
      * the screen shows "No attendance data yet" instead of all-zero statistics. */
     val hasEnoughData: Boolean = false,
+    /** The month Performance/Work Hours/Punctuality below are computed for — defaults to the
+     * current month, changed via [ReportsViewModel.showPreviousMonth]/[ReportsViewModel.showNextMonth]. */
+    val displayedMonth: LocalDate = AttendanceTimeFormat.today().withDayOfMonth(1),
+    val monthLabel: String = "",
+    /** Both clamped to the single already-fetched range (see [ReportsViewModel.fetchStart]) —
+     * there's no data, and no extra query, outside it. */
+    val canShowPreviousMonth: Boolean = false,
+    val canShowNextMonth: Boolean = false,
     val performance: ReportsPerformance = ReportsPerformance(),
     val workHours: ReportsWorkHours = ReportsWorkHours(),
     val punctuality: ReportsPunctuality = ReportsPunctuality(),
@@ -144,9 +152,25 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         observeRange(uid)
     }
 
+    /** Both no-op past the already-fetched [fetchStart]..[today] window — there's no data (and
+     * this view model deliberately makes no second query) outside it. */
+    fun showPreviousMonth() {
+        val target = _uiState.value.displayedMonth.minusMonths(1)
+        if (target.isBefore(fetchStart)) return
+        _uiState.update { it.copy(displayedMonth = target) }
+        recompute()
+    }
+
+    fun showNextMonth() {
+        val target = _uiState.value.displayedMonth.plusMonths(1)
+        if (target.isAfter(today)) return
+        _uiState.update { it.copy(displayedMonth = target) }
+        recompute()
+    }
+
     private fun recompute() {
-        val monthStart = today.withDayOfMonth(1)
-        val monthEnd = today.withDayOfMonth(today.lengthOfMonth())
+        val monthStart = _uiState.value.displayedMonth
+        val monthEnd = monthStart.withDayOfMonth(monthStart.lengthOfMonth())
         val previousMonthEnd = monthStart.minusDays(1)
         val previousMonthStart = previousMonthEnd.withDayOfMonth(1)
 
@@ -165,6 +189,9 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                 isLoading = false,
                 errorMessage = null,
                 hasEnoughData = hasEnoughData,
+                monthLabel = AttendanceTimeFormat.monthLabel(monthStart),
+                canShowPreviousMonth = !monthStart.minusMonths(1).isBefore(fetchStart),
+                canShowNextMonth = !monthStart.plusMonths(1).isAfter(today),
                 performance = performance,
                 workHours = workHours,
                 punctuality = punctuality,

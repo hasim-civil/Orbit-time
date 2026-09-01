@@ -16,9 +16,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
@@ -90,6 +92,8 @@ fun ReportsScreen(
         selectedTab = selectedTab,
         onTabSelected = onTabSelected,
         onTrendModeChanged = viewModel::setTrendMode,
+        onPreviousMonth = viewModel::showPreviousMonth,
+        onNextMonth = viewModel::showNextMonth,
         onRetry = viewModel::retry,
         photoBase64 = photoBase64,
         hasNotification = hasNotification,
@@ -104,6 +108,8 @@ fun ReportsContent(
     selectedTab: OrbitTab,
     onTabSelected: (OrbitTab) -> Unit,
     onTrendModeChanged: (AttendanceRangeMode) -> Unit,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
     onRetry: () -> Unit,
     photoBase64: String = "",
     hasNotification: Boolean = false,
@@ -134,6 +140,15 @@ fun ReportsContent(
                         .cardRiseEntrance(),
                 ) {
                     Spacer(modifier = Modifier.height(OrbitSpacing.md))
+
+                    ReportsMonthSelector(
+                        monthLabel = uiState.monthLabel,
+                        canShowPrevious = uiState.canShowPreviousMonth,
+                        canShowNext = uiState.canShowNextMonth,
+                        onPreviousMonth = onPreviousMonth,
+                        onNextMonth = onNextMonth,
+                    )
+                    Spacer(modifier = Modifier.height(ReportsSectionGap))
 
                     if (!uiState.isOnline) {
                         InlineBanner(
@@ -175,6 +190,39 @@ fun ReportsContent(
                 }
             }
         }
+    }
+}
+
+/** Month picker for the figures below — Previous/Next, matching Timesheet's own calendar-header
+ * nav buttons, so switching months reads the same way it does everywhere else in the app. Both
+ * arrows disable (rather than hide) past the already-fetched range, per [ReportsUiState]. */
+@Composable
+private fun ReportsMonthSelector(
+    monthLabel: String,
+    canShowPrevious: Boolean,
+    canShowNext: Boolean,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(text = monthLabel, style = OrbitTypography.headline, color = OrbitColors.ink900, modifier = Modifier.weight(1f))
+        ReportsMonthNavButton(symbol = "‹", enabled = canShowPrevious, onClick = onPreviousMonth)
+        Spacer(modifier = Modifier.width(OrbitSpacing.sm))
+        ReportsMonthNavButton(symbol = "›", enabled = canShowNext, onClick = onNextMonth)
+    }
+}
+
+@Composable
+private fun ReportsMonthNavButton(symbol: String, enabled: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .border(1.dp, OrbitColors.slate200, CircleShape)
+            .clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = symbol, style = OrbitTypography.bodyMedium, color = if (enabled) OrbitColors.slate600 else OrbitColors.slate300)
     }
 }
 
