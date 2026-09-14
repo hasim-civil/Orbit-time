@@ -43,7 +43,8 @@ data class TimesheetDay(
     val location: String? = null,
     /** The covering leave's type label ("Sick leave", …), so a leave day can name itself. */
     val leaveLabel: String? = null,
-    /** The covering holiday's own name, so a holiday can name itself rather than just "Holiday". */
+    /** The covering holiday's own name, so a holiday can name itself rather than just "Holiday".
+     * Blank for a holiday saved without a name. */
     val holidayName: String? = null,
 )
 
@@ -123,7 +124,7 @@ class TimesheetViewModel(
                 .collect { holidays ->
                     holidayNamesByDate = holidays.mapNotNull { holiday ->
                         runCatching { LocalDate.parse(holiday.date) }.getOrNull()?.let { date ->
-                            date to holiday.name.ifBlank { "Holiday" }
+                            date to holiday.name
                         }
                     }.toMap()
                     rebuildDays()

@@ -519,8 +519,9 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
     val statusLabel = status.label
     val statusColor = historyStatusColor(status)
 
-    // Worked days show their punch times; a day that wasn't worked names its own reason
-    // instead, so no row is ever left blank.
+    // Worked days show their punch times. A day that wasn't worked only fills this line when it
+    // has something to add that the status doesn't already say — which leave it was, which
+    // holiday — so no row ever states its status twice.
     val timeRangeText = if (day.checkInAt != null) {
         val inText = AttendanceTimeFormat.clockTime(day.checkInAt)
         val outText = when {
@@ -531,12 +532,10 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
         "$inText → $outText"
     } else {
         when (status) {
-            DailyHistoryStatus.LEAVE -> day.leaveLabel ?: status.label
-            DailyHistoryStatus.HOLIDAY -> day.holidayName ?: status.label
-            DailyHistoryStatus.WEEKEND -> "Weekly off"
-            DailyHistoryStatus.ABSENT -> "No check-in"
-            else -> "—"
-        }
+            DailyHistoryStatus.LEAVE -> day.leaveLabel
+            DailyHistoryStatus.HOLIDAY -> day.holidayName?.takeIf { it.isNotBlank() }
+            else -> null
+        } ?: "—"
     }
 
     val progress = duration?.let { (it.toMinutes().toFloat() / shiftDuration.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
