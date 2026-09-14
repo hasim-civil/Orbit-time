@@ -1,10 +1,17 @@
 name: Build debug APK
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a versioned release at this tag (e.g. v.1.1). Leave blank to build a beta only."
+        required: false
+        default: ""
   push:
     branches:
       - "claude/**"
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -51,10 +58,36 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
-      - name: Rename APK for beta distribution
+      # A versioned release is asked for either by running this workflow with release_tag set,
+      # or by pushing a v* tag. Anything else stays exactly as before: a beta prerelease.
+      - name: Work out what to publish
+        id: release
+        run: |
+          tag="${{ inputs.release_tag }}"
+          if [ -z "$tag" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "publish=beta" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          notes=".github/release-notes/${tag}.md"
+          if [ ! -f "$notes" ]; then
+            notes="$RUNNER_TEMP/notes.md"
+            printf 'Orbit Time %s, built from %s.\n' "$tag" "${{ github.sha }}" > "$notes"
+          fi
+          {
+            echo "publish=version"
+            echo "tag=$tag"
+            echo "notes=$notes"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK for distribution
         run: |
           mkdir -p app/build/outputs/apk/debug-renamed
-          cp app/build/outputs/apk/debug/*.apk "app/build/outputs/apk/debug-renamed/OrbitTime-Beta-${{ github.run_number }}.apk"
+          label="${{ steps.release.outputs.tag }}"
+          [ -z "$label" ] && label="Beta-${{ github.run_number }}"
+          cp app/build/outputs/apk/debug/*.apk "app/build/outputs/apk/debug-renamed/OrbitTime-${label}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -63,7 +96,22 @@ jobs:
           path: app/build/outputs/apk/debug-renamed/*.apk
           if-no-files-found: error
 
+      - name: Publish versioned release with APK
+        if: steps.release.outputs.publish == 'version'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Orbit Time ${{ steps.release.outputs.tag }}
+          body_path: ${{ steps.release.outputs.notes }}
+          # Without this the tag is created against the repository's default branch rather than
+          # the commit that was actually built — which is how every beta-* tag ended up pointing
+          # at 6ec4f1e instead of the branch commit its APK came from.
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          files: app/build/outputs/apk/debug-renamed/*.apk
+
       - name: Publish beta release with APK
+        if: steps.release.outputs.publish == 'beta'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: beta-${{ github.run_number }}
