@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.holiday.HolidayRepository
 import com.hasim.orbittime.data.leave.LeaveRepository
 import com.hasim.orbittime.data.notification.NotificationKind
 import com.hasim.orbittime.data.notification.NotificationRepository
@@ -79,6 +80,7 @@ class AttendanceViewModel(
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
     private val leaveRepository = LeaveRepository()
+    private val holidayRepository = HolidayRepository()
     private val notificationRepository = NotificationRepository()
     private val todayDate = AttendanceTimeFormat.today()
     private val todayKey = AttendanceTimeFormat.dateKey(todayDate)
@@ -90,6 +92,9 @@ class AttendanceViewModel(
 
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
     private var leaveDates: Set<LocalDate> = emptySet()
+
+    /** A holiday is not a missed day, so these dates are excluded from the absence check below. */
+    private var holidayDates: Set<LocalDate> = emptySet()
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
@@ -115,6 +120,7 @@ class AttendanceViewModel(
             observeRecord(uid)
             observeMonthRange(uid)
             observeLeaves(uid)
+            observeHolidays(uid)
             observeConnectivity()
             tickElapsedWhileRunning()
             loadShiftStart(uid)
@@ -127,6 +133,17 @@ class AttendanceViewModel(
                 .catch { /* Leave dates are an enhancement to the summary; a failure here shouldn't block attendance. */ }
                 .collect { leaves ->
                     leaveDates = leaves.flatMap { it.dateRange() }.toSet()
+                    recomputeSummary()
+                }
+        }
+    }
+
+    private fun observeHolidays(uid: String) {
+        viewModelScope.launch {
+            holidayRepository.observeHolidays(uid)
+                .catch { /* Holidays only suppress a notification; a failure here shouldn't block attendance. */ }
+                .collect { holidays ->
+                    holidayDates = holidays.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
                     recomputeSummary()
                 }
         }
@@ -267,6 +284,7 @@ class AttendanceViewModel(
                 today = todayDate,
                 lateAfter = lateAfter,
                 isOnLeave = date in leaveDates,
+                isHoliday = date in holidayDates,
             )
             if (status == AttendanceStatus.ABSENT) {
                 val missedDate = date

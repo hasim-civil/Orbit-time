@@ -123,11 +123,13 @@ object AttendanceStats {
      * nothing to say yet: today, or a future scheduled day, with no check-in.
      *
      * The order below is the rule, and it is deliberate:
-     *  - a non-scheduled day is never "absent" — nobody was expected in;
-     *  - a holiday outranks the punch record for labelling purposes, but (see [DailyHistory])
-     *    the hours worked on it are still shown;
-     *  - an actual check-in outranks a leave record, because the day was in fact worked;
-     *  - only then does a past scheduled day with nothing on it count as absent.
+     *  - a holiday or an approved leave outranks both the punch record and "absent", so adding
+     *    either for a past date re-labels that date on its own — no attendance record needed.
+     *    The hours worked on such a day are not discarded; [DailyHistory] still shows them;
+     *  - a non-scheduled day is never "absent" — nobody was expected in — and is never "late"
+     *    either, since the shift start it would be measured against doesn't apply that day;
+     *  - a check-in then decides on-time vs late;
+     *  - only then does a past scheduled day with nothing at all on it count as absent.
      */
     fun classifyDay(
         checkInAt: Instant?,
@@ -138,11 +140,11 @@ object AttendanceStats {
         isOnLeave: Boolean = false,
         isHoliday: Boolean = false,
     ): AttendanceStatus? = when {
-        date.dayOfWeek !in SCHEDULED_DAYS -> AttendanceStatus.WEEKEND
         isHoliday -> AttendanceStatus.HOLIDAY
+        isOnLeave -> AttendanceStatus.LEAVE
+        date.dayOfWeek !in SCHEDULED_DAYS -> AttendanceStatus.WEEKEND
         checkInAt != null ->
             if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
-        isOnLeave -> AttendanceStatus.LEAVE
         date.isBefore(today) -> AttendanceStatus.ABSENT
         else -> null
     }

@@ -1,7 +1,10 @@
 package com.hasim.orbittime.util
 
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 /**
  * The single status shown on one Daily History row. Exactly one of these applies to any given
@@ -95,10 +98,13 @@ object DailyHistory {
         shiftDuration: Duration,
         locationName: String?,
     ): DailyHistoryStatus = when {
+        // A holiday or a leave record outranks whatever the punch record says: the date reads
+        // "Holiday"/"Leave" even when it also carries attendance. The hours themselves are not
+        // thrown away — the row still shows the times and the total beside this status.
+        dayStatus == AttendanceStatus.HOLIDAY -> DailyHistoryStatus.HOLIDAY
+        dayStatus == AttendanceStatus.LEAVE -> DailyHistoryStatus.LEAVE
         !hasCheckIn -> when (dayStatus) {
-            AttendanceStatus.HOLIDAY -> DailyHistoryStatus.HOLIDAY
             AttendanceStatus.WEEKEND -> DailyHistoryStatus.WEEKEND
-            AttendanceStatus.LEAVE -> DailyHistoryStatus.LEAVE
             AttendanceStatus.ABSENT -> DailyHistoryStatus.ABSENT
             else -> DailyHistoryStatus.PENDING
         }
@@ -109,4 +115,81 @@ object DailyHistory {
         locationName == LOCATION_OUTSTATION -> DailyHistoryStatus.OUTSTATION
         else -> DailyHistoryStatus.ON_TIME
     }
+
+    /**
+     * Derives the whole displayed month from *every* source that has something to say about a
+     * date — attendance, leaves and holidays — rather than from the attendance records alone.
+     *
+     * This is the Timesheet's single derivation step: a holiday or leave added for a past date
+     * changes that date here with no attendance record involved at all, and removing it puts the
+     * date straight back to whatever its attendance says (or Absent, if it says nothing).
+     */
+    fun buildMonth(
+        monthStart: LocalDate,
+        today: LocalDate,
+        punches: Map<LocalDate, DayPunch>,
+        leaveLabels: Map<LocalDate, String>,
+        holidayNames: Map<LocalDate, String>,
+        zone: ZoneId = ZoneId.systemDefault(),
+        lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER,
+    ): MonthView {
+        val days = (1..monthStart.lengthOfMonth()).map { dayOfMonth ->
+            val date = monthStart.withDayOfMonth(dayOfMonth)
+            val punch = punches[date]
+            HistoryDay(
+                date = date,
+                checkInAt = punch?.checkInAt,
+                checkOutAt = punch?.checkOutAt,
+                location = punch?.location,
+                leaveLabel = leaveLabels[date],
+                holidayName = holidayNames[date],
+                status = AttendanceStats.classifyDay(
+                    checkInAt = punch?.checkInAt,
+                    date = date,
+                    today = today,
+                    zone = zone,
+                    lateAfter = lateAfter,
+                    isOnLeave = date in leaveLabels,
+                    isHoliday = date in holidayNames,
+                ),
+            )
+        }
+        val byDate = days.associateBy { it.date }
+        return MonthView(
+            days = days,
+            history = period(monthStart, today).map { date -> byDate.getValue(date) },
+        )
+    }
 }
+
+/** One stored attendance record, in plain types — the Firebase Timestamps already unwrapped. */
+data class DayPunch(
+    val checkInAt: Instant? = null,
+    val checkOutAt: Instant? = null,
+    /** One of [com.hasim.orbittime.data.attendance.AttendanceLocation]'s names. */
+    val location: String? = null,
+)
+
+/**
+ * One calendar day of the displayed month, resolved from attendance + leaves + holidays.
+ * Plain types only — no Firebase, no Android — so the whole derivation stays testable.
+ */
+data class HistoryDay(
+    val date: LocalDate,
+    val checkInAt: Instant? = null,
+    val checkOutAt: Instant? = null,
+    val status: AttendanceStatus? = null,
+    /** One of [com.hasim.orbittime.data.attendance.AttendanceLocation]'s names, set only via a
+     * manual edit or backfill. */
+    val location: String? = null,
+    /** The covering leave's type label ("Sick leave", …), so a leave day can name itself. */
+    val leaveLabel: String? = null,
+    /** The covering holiday's own name. Blank for a holiday saved without one. */
+    val holidayName: String? = null,
+)
+
+/** [MonthView.days] fills the month grid; [MonthView.history] is the Daily History list. */
+data class MonthView(
+    val days: List<HistoryDay> = emptyList(),
+    val history: List<HistoryDay> = emptyList(),
+)
