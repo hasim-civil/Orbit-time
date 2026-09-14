@@ -19,7 +19,6 @@ import com.hasim.orbittime.util.DailyHistory
 import com.hasim.orbittime.util.DayPunch
 import com.hasim.orbittime.util.HistoryDay
 import com.hasim.orbittime.util.observeIsOnline
-import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -49,13 +48,6 @@ data class TimesheetUiState(
     /** Every date of the displayed history period, oldest first and with no gaps — see
      * [DailyHistory.period]. Never filtered down to "days with a check-in". */
     val history: List<TimesheetDay> = emptyList(),
-    val shiftDuration: Duration = AttendanceStats.shiftDuration(AttendanceStats.DEFAULT_LATE_AFTER, AttendanceStats.DEFAULT_SHIFT_END),
-)
-
-/** The user's own shift window, which decides both "late" and the history progress denominator. */
-private data class Shift(
-    val start: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER,
-    val end: LocalTime = AttendanceStats.DEFAULT_SHIFT_END,
 )
 
 class TimesheetViewModel(
@@ -71,9 +63,14 @@ class TimesheetViewModel(
     private val _uiState = MutableStateFlow(TimesheetUiState())
     val uiState: StateFlow<TimesheetUiState> = _uiState.asStateFlow()
 
-    /** The user's shift, as its own flow so a late-arriving profile re-derives the month through
-     * the same single pipeline as everything else, instead of patching state on the side. */
-    private val shift = MutableStateFlow(Shift())
+    /**
+     * The user's shift start — the late-arrival cutoff — as its own flow, so a late-arriving
+     * profile re-derives the month through the same single pipeline as everything else instead
+     * of patching state on the side. The shift *end* isn't needed here: "late" comes from the
+     * start, and both overtime and the history progress bar are measured against the required
+     * 8-hour working day rather than the scheduled span.
+     */
+    private val shiftStart = MutableStateFlow(AttendanceStats.DEFAULT_LATE_AFTER)
 
     private var monthJob: Job? = null
 
@@ -84,18 +81,14 @@ class TimesheetViewModel(
         } else {
             observeConnectivity()
             observeMonth(uid, _uiState.value.displayedMonth)
-            loadShift(uid)
+            loadShiftStart(uid)
         }
     }
 
-    private fun loadShift(uid: String) {
+    private fun loadShiftStart(uid: String) {
         viewModelScope.launch {
             val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull() ?: return@launch
-            val start = runCatching { LocalTime.parse(profile.shiftStart) }.getOrNull()
-            val end = runCatching { LocalTime.parse(profile.shiftEnd) }.getOrNull()
-            if (start != null || end != null) {
-                shift.value = Shift(start ?: shift.value.start, end ?: shift.value.end)
-            }
+            runCatching { LocalTime.parse(profile.shiftStart) }.getOrNull()?.let { shiftStart.value = it }
         }
     }
 
@@ -140,8 +133,8 @@ class TimesheetViewModel(
                 // so a leave or holiday saved for *any* date — past months included — lands here.
                 leaveRepository.observeLeaves(uid).retryForever().onStart { emit(emptyList()) },
                 holidayRepository.observeHolidays(uid).retryForever().onStart { emit(emptyList()) },
-                shift,
-            ) { records, leaves, holidays, currentShift ->
+                shiftStart,
+            ) { records, leaves, holidays, lateAfter ->
                 val punches = records.mapNotNull { record ->
                     runCatching { LocalDate.parse(record.date) }.getOrNull()?.let { date ->
                         date to DayPunch(
@@ -157,9 +150,9 @@ class TimesheetViewModel(
                     punches = punches,
                     leaveLabels = leaves.leaveLabelsByDate(),
                     holidayNames = holidays.holidayNamesByDate(),
-                    lateAfter = currentShift.start,
-                ) to currentShift
-            }.collect { (month, currentShift) ->
+                    lateAfter = lateAfter,
+                )
+            }.collect { month ->
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -167,7 +160,6 @@ class TimesheetViewModel(
                         monthLabel = AttendanceTimeFormat.monthLabel(monthStart),
                         days = month.days,
                         history = month.history,
-                        shiftDuration = AttendanceStats.shiftDuration(currentShift.start, currentShift.end),
                     )
                 }
             }

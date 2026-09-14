@@ -113,6 +113,19 @@ object DailyHistory {
     }
 
     /**
+     * How full a Daily History row's progress bar is: the worked duration against
+     * [AttendanceStats.REQUIRED_WORKING_DURATION] — the same 8 hours overtime is measured
+     * against, so the bar and the status agree about what a full day is.
+     *
+     * Capped at 1f: an overtime day fills the bar exactly, it never overflows its card.
+     */
+    fun progress(worked: Duration?): Float {
+        if (worked == null) return 0f
+        val required = AttendanceStats.REQUIRED_WORKING_DURATION.toMinutes().toFloat()
+        return (worked.toMinutes().toFloat() / required).coerceIn(0f, 1f)
+    }
+
+    /**
      * Derives the whole displayed month from *every* source that has something to say about a
      * date — attendance, leaves and holidays — rather than from the attendance records alone.
      *

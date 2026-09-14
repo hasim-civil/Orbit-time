@@ -188,7 +188,6 @@ fun TimesheetContent(
                         Spacer(modifier = Modifier.height(OrbitSpacing.md))
                         DailyHistoryCard(
                             history = uiState.history,
-                            shiftDuration = uiState.shiftDuration,
                             onEditDay = onEditDay,
                             onDeleteDay = onDeleteDay,
                         )
@@ -330,7 +329,6 @@ private fun LegendDot(color: Color, text: String) {
 @Composable
 private fun DailyHistoryCard(
     history: List<TimesheetDay>,
-    shiftDuration: Duration,
     onEditDay: (LocalDate, LocalTime, LocalTime?, AttendanceLocation?) -> Unit,
     onDeleteDay: (LocalDate) -> Unit,
 ) {
@@ -365,12 +363,11 @@ private fun DailyHistoryCard(
                 if (day.checkInAt != null) {
                     SwipeableHistoryRow(
                         day = day,
-                        shiftDuration = shiftDuration,
                         onEditClick = { editingDay = day },
                         onDeleteClick = { pendingDeleteDay = day },
                     )
                 } else {
-                    DailyHistoryRow(day = day, shiftDuration = shiftDuration)
+                    DailyHistoryRow(day = day)
                 }
             }
         }
@@ -433,7 +430,6 @@ private val SwipeRevealWidth = SwipeActionWidth * 2
 @Composable
 private fun SwipeableHistoryRow(
     day: TimesheetDay,
-    shiftDuration: Duration,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
 ) {
@@ -478,7 +474,7 @@ private fun SwipeableHistoryRow(
                     },
                 ),
         ) {
-            DailyHistoryRow(day = day, shiftDuration = shiftDuration)
+            DailyHistoryRow(day = day)
         }
     }
 }
@@ -494,7 +490,7 @@ private fun SwipeActionButton(label: String, background: Color, modifier: Modifi
 }
 
 @Composable
-private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
+private fun DailyHistoryRow(day: TimesheetDay) {
     val today = AttendanceTimeFormat.today()
     val isOngoingToday = day.date == today && day.checkOutAt == null
 
@@ -537,7 +533,9 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
         } ?: "—"
     }
 
-    val progress = duration?.let { (it.toMinutes().toFloat() / shiftDuration.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
+    // Measured against the required 8-hour working day, the same baseline overtime uses — so a
+    // full day fills the bar and an overtime day fills it exactly, never past its card.
+    val progress = DailyHistory.progress(duration)
     // The reference's "barGrow": each row's progress bar grows in from empty when it first appears.
     val animatedProgress = remember { Animatable(0f) }
     LaunchedEffect(progress) {
