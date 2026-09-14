@@ -45,7 +45,7 @@ data class TimesheetUiState(
     val displayedMonth: LocalDate = AttendanceTimeFormat.today().withDayOfMonth(1),
     val monthLabel: String = "",
     val days: List<TimesheetDay> = emptyList(),
-    /** Every date of the displayed history period, oldest first and with no gaps — see
+    /** Every date of the displayed history period, newest first and with no gaps — see
      * [DailyHistory.period]. Never filtered down to "days with a check-in". */
     val history: List<TimesheetDay> = emptyList(),
 )

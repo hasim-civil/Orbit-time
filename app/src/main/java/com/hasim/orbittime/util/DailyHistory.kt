@@ -166,7 +166,10 @@ object DailyHistory {
         val byDate = days.associateBy { it.date }
         return MonthView(
             days = days,
-            history = period(monthStart, today).map { date -> byDate.getValue(date) },
+            // Newest first: the most recent date heads the list and older dates run below it.
+            // [period] stays the canonical oldest-first range — which dates belong to the
+            // period is a separate question from how they're ordered on screen.
+            history = period(monthStart, today).reversed().map { date -> byDate.getValue(date) },
         )
     }
 }
@@ -197,7 +200,10 @@ data class HistoryDay(
     val holidayName: String? = null,
 )
 
-/** [MonthView.days] fills the month grid; [MonthView.history] is the Daily History list. */
+/**
+ * [MonthView.days] fills the month grid, in calendar order. [MonthView.history] is the Daily
+ * History list, newest date first.
+ */
 data class MonthView(
     val days: List<HistoryDay> = emptyList(),
     val history: List<HistoryDay> = emptyList(),
