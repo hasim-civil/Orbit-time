@@ -16,8 +16,12 @@ data class DailyAttendance(
 
 enum class AttendanceRangeMode { WEEK, MONTH }
 
-/** Holiday has no data source yet (its own phase), so classifyDay never produces it today. */
-enum class AttendanceStatus { PRESENT, LATE, ABSENT, LEAVE, HOLIDAY }
+/**
+ * WEEKEND covers every non-scheduled day (the work week is Mon–Sat, so: Sunday). It used to be
+ * reported as "no status at all", which left those dates with nothing to render — and so with
+ * nothing to list in Daily History.
+ */
+enum class AttendanceStatus { PRESENT, LATE, ABSENT, LEAVE, HOLIDAY, WEEKEND }
 
 data class AttendanceSummary(
     val rangeLabel: String = "",
@@ -115,8 +119,15 @@ object AttendanceStats {
     }
 
     /**
-     * Per-day status for calendar/history views. Returns null for a day with nothing to show yet:
-     * a non-scheduled day (Sunday), or today/a future day with no check-in.
+     * Per-day status for calendar/history views. Returns null only for a day that genuinely has
+     * nothing to say yet: today, or a future scheduled day, with no check-in.
+     *
+     * The order below is the rule, and it is deliberate:
+     *  - a non-scheduled day is never "absent" — nobody was expected in;
+     *  - a holiday outranks the punch record for labelling purposes, but (see [DailyHistory])
+     *    the hours worked on it are still shown;
+     *  - an actual check-in outranks a leave record, because the day was in fact worked;
+     *  - only then does a past scheduled day with nothing on it count as absent.
      */
     fun classifyDay(
         checkInAt: Instant?,
@@ -125,13 +136,14 @@ object AttendanceStats {
         zone: ZoneId = ZoneId.systemDefault(),
         lateAfter: LocalTime = DEFAULT_LATE_AFTER,
         isOnLeave: Boolean = false,
-    ): AttendanceStatus? {
-        if (date.dayOfWeek !in SCHEDULED_DAYS) return null
-        if (isOnLeave) return AttendanceStatus.LEAVE
-        return when {
-            checkInAt != null -> if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
-            date.isBefore(today) -> AttendanceStatus.ABSENT
-            else -> null
-        }
+        isHoliday: Boolean = false,
+    ): AttendanceStatus? = when {
+        date.dayOfWeek !in SCHEDULED_DAYS -> AttendanceStatus.WEEKEND
+        isHoliday -> AttendanceStatus.HOLIDAY
+        checkInAt != null ->
+            if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
+        isOnLeave -> AttendanceStatus.LEAVE
+        date.isBefore(today) -> AttendanceStatus.ABSENT
+        else -> null
     }
 }

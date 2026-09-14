@@ -8,11 +8,15 @@ import com.hasim.orbittime.data.attendance.AttendanceLocation
 import com.hasim.orbittime.data.attendance.AttendanceRecord
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.holiday.HolidayRepository
+import com.hasim.orbittime.data.leave.LeaveRecord
 import com.hasim.orbittime.data.leave.LeaveRepository
+import com.hasim.orbittime.data.leave.LeaveType
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceTimeFormat
+import com.hasim.orbittime.util.DailyHistory
 import com.hasim.orbittime.util.observeIsOnline
 import java.time.Duration
 import java.time.Instant
@@ -37,6 +41,10 @@ data class TimesheetDay(
     /** One of [com.hasim.orbittime.data.attendance.AttendanceLocation]'s names, set only via a
      * manual edit or backfill — mirrors [com.hasim.orbittime.data.attendance.AttendanceRecord.location]. */
     val location: String? = null,
+    /** The covering leave's type label ("Sick leave", …), so a leave day can name itself. */
+    val leaveLabel: String? = null,
+    /** The covering holiday's own name, so a holiday can name itself rather than just "Holiday". */
+    val holidayName: String? = null,
 )
 
 data class TimesheetUiState(
@@ -46,6 +54,8 @@ data class TimesheetUiState(
     val displayedMonth: LocalDate = AttendanceTimeFormat.today().withDayOfMonth(1),
     val monthLabel: String = "",
     val days: List<TimesheetDay> = emptyList(),
+    /** Every date of the displayed history period, oldest first and with no gaps — see
+     * [DailyHistory.period]. Never filtered down to "days with a check-in". */
     val history: List<TimesheetDay> = emptyList(),
     val shiftDuration: Duration = AttendanceStats.shiftDuration(AttendanceStats.DEFAULT_LATE_AFTER, AttendanceStats.DEFAULT_SHIFT_END),
 )
@@ -58,6 +68,7 @@ class TimesheetViewModel(
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
     private val leaveRepository = LeaveRepository()
+    private val holidayRepository = HolidayRepository()
 
     private val _uiState = MutableStateFlow(TimesheetUiState())
     val uiState: StateFlow<TimesheetUiState> = _uiState.asStateFlow()
@@ -65,7 +76,12 @@ class TimesheetViewModel(
     private var rangeJob: Job? = null
     private var lastMonthStart: LocalDate? = null
     private var lastRecordsByDate: Map<LocalDate, AttendanceRecord> = emptyMap()
-    private var leaveDates: Set<LocalDate> = emptySet()
+
+    /** Each covered date mapped to that leave's type label, so the row can show which leave it is. */
+    private var leaveLabelsByDate: Map<LocalDate, String> = emptyMap()
+
+    /** Each holiday date mapped to that holiday's own name. */
+    private var holidayNamesByDate: Map<LocalDate, String> = emptyMap()
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
@@ -82,6 +98,7 @@ class TimesheetViewModel(
             observeConnectivity()
             observeMonth(uid, _uiState.value.displayedMonth)
             observeLeaves(uid)
+            observeHolidays(uid)
             loadShiftStart(uid)
         }
     }
@@ -91,7 +108,24 @@ class TimesheetViewModel(
             leaveRepository.observeLeaves(uid)
                 .catch { /* Leave dates are an enhancement to the calendar; a failure here shouldn't block attendance. */ }
                 .collect { leaves ->
-                    leaveDates = leaves.flatMap { it.dateRange() }.toSet()
+                    leaveLabelsByDate = leaves
+                        .flatMap { leave -> leave.dateRange().map { date -> date to leave.typeLabel() } }
+                        .toMap()
+                    rebuildDays()
+                }
+        }
+    }
+
+    private fun observeHolidays(uid: String) {
+        viewModelScope.launch {
+            holidayRepository.observeHolidays(uid)
+                .catch { /* Holidays only annotate the calendar; a failure here shouldn't block attendance. */ }
+                .collect { holidays ->
+                    holidayNamesByDate = holidays.mapNotNull { holiday ->
+                        runCatching { LocalDate.parse(holiday.date) }.getOrNull()?.let { date ->
+                            date to holiday.name.ifBlank { "Holiday" }
+                        }
+                    }.toMap()
                     rebuildDays()
                 }
         }
@@ -156,17 +190,32 @@ class TimesheetViewModel(
                 date = date,
                 checkInAt = checkInAt,
                 checkOutAt = checkOutAt,
-                status = AttendanceStats.classifyDay(checkInAt, date, today, lateAfter = lateAfter, isOnLeave = date in leaveDates),
+                status = AttendanceStats.classifyDay(
+                    checkInAt = checkInAt,
+                    date = date,
+                    today = today,
+                    lateAfter = lateAfter,
+                    isOnLeave = date in leaveLabelsByDate,
+                    isHoliday = date in holidayNamesByDate,
+                ),
                 location = record?.location,
+                leaveLabel = leaveLabelsByDate[date],
+                holidayName = holidayNamesByDate[date],
             )
         }
+
+        // Daily History lists the period's dates themselves, not the records — every date is
+        // present, in order, and days with no attendance carry their own status (Absent,
+        // Leave, Holiday, Weekend) instead of vanishing from the list.
+        val daysByDate = days.associateBy { day -> day.date }
+        val history = DailyHistory.period(monthStart, today).map { date -> daysByDate.getValue(date) }
 
         _uiState.update {
             it.copy(
                 isLoading = false,
                 monthLabel = AttendanceTimeFormat.monthLabel(monthStart),
                 days = days,
-                history = days.filter { day -> day.checkInAt != null }.sortedByDescending { day -> day.date },
+                history = history,
             )
         }
     }
@@ -207,6 +256,11 @@ class TimesheetViewModel(
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
         }
     }
+
+    /** Falls back to the catch-all label rather than dropping the leave, so an unknown or
+     * hand-edited type still reads as leave instead of silently showing as absent. */
+    private fun LeaveRecord.typeLabel(): String =
+        runCatching { LeaveType.valueOf(type) }.getOrNull()?.label ?: LeaveType.OTHER.label
 
     private fun LocalTime.toTimestamp(date: LocalDate): Timestamp =
         Timestamp(Date.from(date.atTime(this).atZone(ZoneId.systemDefault()).toInstant()))

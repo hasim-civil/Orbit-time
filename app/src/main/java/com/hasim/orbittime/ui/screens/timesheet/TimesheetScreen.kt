@@ -66,9 +66,10 @@ import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
-import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceTimeFormat
+import com.hasim.orbittime.util.DailyHistory
+import com.hasim.orbittime.util.DailyHistoryStatus
 import java.time.DayOfWeek
 import java.time.Duration
 import java.time.Instant
@@ -306,12 +307,15 @@ private fun DayCell(day: TimesheetDay?, isToday: Boolean, modifier: Modifier = M
     }
 }
 
-private fun statusDotColor(status: AttendanceStatus): Color = when (status) {
+/** Null where the month grid has always shown a bare date: a non-working day carries no dot,
+ * so classifying Sundays as WEEKEND (instead of "no status") leaves the calendar unchanged. */
+private fun statusDotColor(status: AttendanceStatus): Color? = when (status) {
     AttendanceStatus.PRESENT -> OrbitColors.success
     AttendanceStatus.LATE -> OrbitColors.warning
     AttendanceStatus.ABSENT -> OrbitColors.danger
     AttendanceStatus.LEAVE -> OrbitColors.accent
     AttendanceStatus.HOLIDAY -> OrbitColors.slate400
+    AttendanceStatus.WEEKEND -> null
 }
 
 @Composable
@@ -348,7 +352,7 @@ private fun DailyHistoryCard(
 
         if (history.isEmpty()) {
             Text(
-                text = "No attendance recorded yet this month.",
+                text = "No dates to show for this month yet.",
                 style = OrbitTypography.bodyMedium,
                 color = OrbitColors.slate600,
                 textAlign = TextAlign.Center,
@@ -356,12 +360,18 @@ private fun DailyHistoryCard(
             )
         } else {
             history.forEach { day ->
-                SwipeableHistoryRow(
-                    day = day,
-                    shiftDuration = shiftDuration,
-                    onEditClick = { editingDay = day },
-                    onDeleteClick = { pendingDeleteDay = day },
-                )
+                // Edit/Delete act on a stored attendance record, so they're only offered on the
+                // days that have one — a weekend or absent row has nothing to edit or delete.
+                if (day.checkInAt != null) {
+                    SwipeableHistoryRow(
+                        day = day,
+                        shiftDuration = shiftDuration,
+                        onEditClick = { editingDay = day },
+                        onDeleteClick = { pendingDeleteDay = day },
+                    )
+                } else {
+                    DailyHistoryRow(day = day, shiftDuration = shiftDuration)
+                }
             }
         }
     }
@@ -495,27 +505,22 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
         end?.let { Duration.between(checkIn, it).let { d -> if (d.isNegative) Duration.ZERO else d } }
     }
 
-    // A day worked from home or another site is still "on time" — but the location is more
-    // useful to show than that generic label, since punctuality already has its own flags below.
-    val locationLabel = day.location?.let { raw ->
-        when (runCatching { AttendanceLocation.valueOf(raw) }.getOrNull()) {
-            AttendanceLocation.WORK_FROM_HOME -> "WFH"
-            AttendanceLocation.OUTSTATION -> "Outstation"
-            else -> null
-        }
-    }
+    // Exactly one status per row, decided in one pure place — so nothing is ever stated twice
+    // (the time line used to repeat "· overtime" next to the "Overtime" status).
+    val status = DailyHistory.statusOf(
+        dayStatus = day.status,
+        hasCheckIn = day.checkInAt != null,
+        hasCheckOut = day.checkOutAt != null,
+        isOngoingToday = isOngoingToday,
+        worked = duration,
+        shiftDuration = shiftDuration,
+        locationName = day.location,
+    )
+    val statusLabel = status.label
+    val statusColor = historyStatusColor(status)
 
-    val (statusLabel, statusColor) = when {
-        day.checkInAt != null && day.checkOutAt == null && !isOngoingToday -> "Incomplete" to OrbitColors.slate500
-        day.status == AttendanceStatus.LATE -> "Late" to OrbitColors.warningDark
-        duration != null && duration > AttendanceStats.OVERTIME_AFTER -> "Overtime" to OrbitColors.warningDark
-        day.status == AttendanceStatus.ABSENT -> "Absent" to OrbitColors.danger
-        day.status == AttendanceStatus.LEAVE -> "Leave" to OrbitColors.accent
-        day.status == AttendanceStatus.HOLIDAY -> "Holiday" to OrbitColors.slate500
-        locationLabel != null -> locationLabel to OrbitColors.info
-        else -> "On time" to OrbitColors.successDark
-    }
-
+    // Worked days show their punch times; a day that wasn't worked names its own reason
+    // instead, so no row is ever left blank.
     val timeRangeText = if (day.checkInAt != null) {
         val inText = AttendanceTimeFormat.clockTime(day.checkInAt)
         val outText = when {
@@ -523,10 +528,15 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
             isOngoingToday -> "now"
             else -> "—"
         }
-        val suffix = if (statusLabel == "Overtime") " · overtime" else ""
-        "$inText → $outText$suffix"
+        "$inText → $outText"
     } else {
-        "—"
+        when (status) {
+            DailyHistoryStatus.LEAVE -> day.leaveLabel ?: status.label
+            DailyHistoryStatus.HOLIDAY -> day.holidayName ?: status.label
+            DailyHistoryStatus.WEEKEND -> "Weekly off"
+            DailyHistoryStatus.ABSENT -> "No check-in"
+            else -> "—"
+        }
     }
 
     val progress = duration?.let { (it.toMinutes().toFloat() / shiftDuration.toMinutes().toFloat()).coerceIn(0f, 1f) } ?: 0f
@@ -568,6 +578,23 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
             Text(text = statusLabel, style = OrbitTypography.bodySmall, color = statusColor)
         }
     }
+}
+
+/**
+ * Late stays on the amber/orange warning tone; Overtime moves to the palette's purple accent,
+ * so the two are never confusable — they previously shared the exact same colour.
+ */
+private fun historyStatusColor(status: DailyHistoryStatus): Color = when (status) {
+    DailyHistoryStatus.LATE -> OrbitColors.warningDark
+    DailyHistoryStatus.OVERTIME -> OrbitColors.purple600
+    DailyHistoryStatus.ABSENT -> OrbitColors.danger
+    DailyHistoryStatus.LEAVE -> OrbitColors.accent
+    DailyHistoryStatus.HOLIDAY -> OrbitColors.slate500
+    DailyHistoryStatus.WEEKEND -> OrbitColors.slate400
+    DailyHistoryStatus.INCOMPLETE -> OrbitColors.slate500
+    DailyHistoryStatus.PENDING -> OrbitColors.slate500
+    DailyHistoryStatus.WORK_FROM_HOME, DailyHistoryStatus.OUTSTATION -> OrbitColors.info
+    DailyHistoryStatus.ON_TIME -> OrbitColors.successDark
 }
 
 @Composable
