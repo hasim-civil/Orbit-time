@@ -50,7 +50,21 @@ object AttendanceStats {
      * [com.hasim.orbittime.data.user.UserProfile]'s own defaults. */
     val DEFAULT_LATE_AFTER: LocalTime = LocalTime.of(9, 0)
     val DEFAULT_SHIFT_END: LocalTime = LocalTime.of(17, 30)
-    val OVERTIME_AFTER: Duration = Duration.ofHours(8)
+    /**
+     * The working duration every attendance day is measured against. This is deliberately
+     * independent of the user's scheduled shift: shift start/end say *when* someone is expected
+     * in (and so decide "late"), while this says how long a full day's work is. A 9:00–17:30
+     * shift is 8h30m of clock time, but the required working duration is still 8 hours.
+     */
+    val REQUIRED_WORKING_DURATION: Duration = Duration.ofHours(8)
+
+    /**
+     * `overtime = max(0, worked - required)`, from the actual worked duration — never from
+     * "checked out after the shift end", which would call a late-starting full day overtime and
+     * miss an early-starting long one.
+     */
+    fun overtime(worked: Duration): Duration =
+        worked.minus(REQUIRED_WORKING_DURATION).let { if (it.isNegative) Duration.ZERO else it }
 
     /** A shift's real scheduled length, handling the (rare) overnight case where end wraps past
      * midnight before start. Used as the denominator for shift-completion progress bars instead
@@ -93,7 +107,7 @@ object AttendanceStats {
                             if (end != null) {
                                 val duration = Duration.between(checkInAt, end).let { if (it.isNegative) Duration.ZERO else it }
                                 worked += duration
-                                if (duration > OVERTIME_AFTER) overtime += duration - OVERTIME_AFTER
+                                overtime += AttendanceStats.overtime(duration)
                             }
                         }
                         date.isBefore(today) -> absent += 1

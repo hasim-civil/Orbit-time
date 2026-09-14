@@ -513,7 +513,6 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
         hasCheckOut = day.checkOutAt != null,
         isOngoingToday = isOngoingToday,
         worked = duration,
-        shiftDuration = shiftDuration,
         locationName = day.location,
     )
     val statusLabel = status.label
@@ -581,7 +580,9 @@ private fun DailyHistoryRow(day: TimesheetDay, shiftDuration: Duration) {
 
 /**
  * Late stays on the amber/orange warning tone; Overtime moves to the palette's purple accent,
- * so the two are never confusable — they previously shared the exact same colour.
+ * so the two are never confusable — they previously shared the exact same colour. They are also
+ * decided from different things: Late from the scheduled shift start, Overtime from the worked
+ * duration (see [DailyHistory.statusOf]).
  */
 private fun historyStatusColor(status: DailyHistoryStatus): Color = when (status) {
     DailyHistoryStatus.LATE -> OrbitColors.warningDark

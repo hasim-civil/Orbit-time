@@ -31,7 +31,7 @@ enum class DailyHistoryStatus(val label: String) {
     /** Checked in after the user's own shift start. */
     LATE("Late"),
 
-    /** Worked meaningfully longer than the user's own scheduled shift. */
+    /** Worked longer than [AttendanceStats.REQUIRED_WORKING_DURATION]. */
     OVERTIME("Overtime"),
 
     WORK_FROM_HOME("WFH"),
@@ -51,12 +51,6 @@ object DailyHistory {
      * location is stored on a record and carried through the UI state. */
     private const val LOCATION_WORK_FROM_HOME = "WORK_FROM_HOME"
     private const val LOCATION_OUTSTATION = "OUTSTATION"
-
-    /**
-     * How far past the scheduled shift a day has to run before it counts as overtime. Without it
-     * a few minutes of overrun — or simply arriving early — would flag an ordinary day.
-     */
-    val OVERTIME_GRACE: Duration = Duration.ofMinutes(15)
 
     /**
      * Every calendar date the list must show for [monthStart]'s month, oldest first and with no
@@ -85,9 +79,12 @@ object DailyHistory {
      * while a day that *was* worked is judged on its times — so working a holiday still shows
      * the hours, and a leave day that was worked anyway isn't reported as time off.
      *
-     * Overtime is measured against [shiftDuration], the user's own shift start→end, rather than
-     * a fixed 8 hours: the default shift is already 8h30m long, so a flat 8-hour rule labelled
-     * every ordinary full day "Overtime".
+     * Late and Overtime are decided separately and from different things. Late comes from
+     * [dayStatus] — the check-in measured against the user's scheduled shift start. Overtime
+     * comes from the actual worked duration against
+     * [AttendanceStats.REQUIRED_WORKING_DURATION], with no reference to the shift at all: two
+     * people working 10:00→18:10 and 11:00→19:10 are both 10 minutes over, whatever their
+     * shifts say, and neither an early start nor a late one changes that.
      */
     fun statusOf(
         dayStatus: AttendanceStatus?,
@@ -95,7 +92,6 @@ object DailyHistory {
         hasCheckOut: Boolean,
         isOngoingToday: Boolean,
         worked: Duration?,
-        shiftDuration: Duration,
         locationName: String?,
     ): DailyHistoryStatus = when {
         // A holiday or a leave record outranks whatever the punch record says: the date reads
@@ -110,7 +106,7 @@ object DailyHistory {
         }
         !hasCheckOut && !isOngoingToday -> DailyHistoryStatus.INCOMPLETE
         dayStatus == AttendanceStatus.LATE -> DailyHistoryStatus.LATE
-        worked != null && worked > shiftDuration + OVERTIME_GRACE -> DailyHistoryStatus.OVERTIME
+        worked != null && AttendanceStats.overtime(worked) > Duration.ZERO -> DailyHistoryStatus.OVERTIME
         locationName == LOCATION_WORK_FROM_HOME -> DailyHistoryStatus.WORK_FROM_HOME
         locationName == LOCATION_OUTSTATION -> DailyHistoryStatus.OUTSTATION
         else -> DailyHistoryStatus.ON_TIME
