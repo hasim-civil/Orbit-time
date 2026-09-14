@@ -516,7 +516,7 @@ private fun FooterCredits() {
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "ORBIT TIME v1.0",
+            text = "ORBIT TIME v.1.1",
             style = FooterVersionStyle,
             color = OrbitColors.slate500.copy(alpha = 0.75f),
         )
