@@ -57,6 +57,12 @@ android {
     buildFeatures {
         compose = true
     }
+
+    testOptions {
+        unitTests {
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -82,7 +88,10 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     implementation(libs.androidx.ui.tooling.preview)
     // Plain JVM unit tests for the pure calculation layer (util/): attendance rollups, the
-    // overtime balance, date/time formatting and the App Time clock. No Android or Firebase
-    // types are involved in any of them, so they need no instrumentation to run.
+    // overtime balance, date/time formatting and the App Time clock, plus the update checker's
+    // release parsing and download logic. No Android or Firebase types are involved in any of
+    // them, so they need no instrumentation to run.
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.org.json)
 }
