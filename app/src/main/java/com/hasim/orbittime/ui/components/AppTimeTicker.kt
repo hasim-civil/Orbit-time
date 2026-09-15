@@ -18,6 +18,12 @@ import kotlinx.coroutines.delay
  * Re-keyed on the App Time setting, so switching between device and manual time re-reads the
  * clock immediately instead of at the end of the current interval.
  */
+// ProduceStateDoesNotAssignValue is a false positive here: the producer lambda below does
+// assign `value` on every iteration of its loop, which is exactly what makes the clock tick.
+// The check simply doesn't see an assignment nested inside `while (true)`. Suppressed at this
+// one call site rather than relaxing lint for the whole module — it is the only produceState
+// in the app, and a genuine non-assigning one elsewhere should still fail the build.
+@Suppress("ProduceStateDoesNotAssignValue")
 @Composable
 fun rememberAppTimeNow(intervalMillis: Long = 1_000L): State<Instant> {
     val settings by AppTimeSettingsStore.settingsFlow.collectAsState()
