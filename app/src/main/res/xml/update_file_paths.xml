@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Downloaded update APKs. App-specific external storage, so no storage permission is
+         needed and the files are removed with the app. Must match ApkInstaller.downloadDirectory. -->
+    <external-files-path
+        name="orbit_updates"
+        path="Download/updates/" />
+</paths>
