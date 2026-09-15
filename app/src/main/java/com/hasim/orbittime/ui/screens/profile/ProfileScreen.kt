@@ -76,6 +76,8 @@ import com.hasim.orbittime.ui.theme.Manrope
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.update.ApkInstaller
+import com.hasim.orbittime.update.displayVersion
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
@@ -545,8 +547,16 @@ private fun FooterCredits() {
             color = OrbitColors.ink900.copy(alpha = 0.42f),
         )
         Spacer(modifier = Modifier.height(2.dp))
+        // Read from the installed package rather than hardcoded: this line said "v.1.1" while
+        // the build was already 1.2, and a literal here has to be remembered at every release.
+        // ApkInstaller/displayVersion are the same pair the update dialog uses, so the footer
+        // and the updater can never disagree about which version is installed.
+        val context = LocalContext.current
+        val versionLabel = remember(context) {
+            ApkInstaller.installedVersionName(context)?.let { displayVersion(it) }
+        }
         Text(
-            text = "ORBIT TIME v.1.1",
+            text = "ORBIT TIME ${versionLabel ?: ""}".trim(),
             style = FooterVersionStyle,
             color = OrbitColors.slate500.copy(alpha = 0.75f),
         )
