@@ -284,45 +284,58 @@ private fun TimeWheelPicker(value: LocalTime, onValueChange: (LocalTime) -> Unit
 
         Spacer(modifier = Modifier.height(OrbitSpacing.xs))
 
-        Box(modifier = Modifier.fillMaxWidth().height(WheelItemHeight * WHEEL_VISIBLE_ITEMS)) {
-            // The selected row: one band across every wheel, so all four columns read as a
-            // single value rather than four separate lists.
+        // The AM/PM column is a sibling of the scrolling group, not a member of it: the selected-row
+        // highlight lives inside that group and fills it, so it can only ever be as wide as the
+        // hour/minute/second columns it belongs to. It used to be a full-width child of one Box
+        // wrapping all four columns, which is why the band ran on under the AM/PM capsule.
+        //
+        // The group takes the leftover width by weight rather than a measured or fixed size, so
+        // the band ends in the same place relative to AM/PM at any screen width — and each wheel
+        // is still an equal weighted share of that group, so the centred values don't move.
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-                    .height(WheelItemHeight)
-                    .background(OrbitColors.accentBg, OrbitShapes.medium),
-            )
+                    .weight(1f)
+                    .height(WheelItemHeight * WHEEL_VISIBLE_ITEMS),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth()
+                        .height(WheelItemHeight)
+                        .background(OrbitColors.accentBg, OrbitShapes.medium),
+                )
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TimeWheel(
-                    items = HOUR_ITEMS,
-                    selectedIndex = hour12 - 1,
-                    onSelectedIndexChange = { emit(newHour12 = it + 1) },
-                    modifier = Modifier.weight(1f),
-                )
-                WheelColon()
-                TimeWheel(
-                    items = MINUTE_ITEMS,
-                    selectedIndex = value.minute,
-                    onSelectedIndexChange = { emit(newMinute = it) },
-                    modifier = Modifier.weight(1f),
-                )
-                WheelColon()
-                TimeWheel(
-                    items = SECOND_ITEMS,
-                    selectedIndex = value.second,
-                    onSelectedIndexChange = { emit(newSecond = it) },
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(modifier = Modifier.width(OrbitSpacing.sm))
-                AmPmSelector(
-                    isAm = isAm,
-                    onSelect = { emit(newIsAm = it) },
-                    modifier = Modifier.width(AmPmWidth),
-                )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    TimeWheel(
+                        items = HOUR_ITEMS,
+                        selectedIndex = hour12 - 1,
+                        onSelectedIndexChange = { emit(newHour12 = it + 1) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    WheelColon()
+                    TimeWheel(
+                        items = MINUTE_ITEMS,
+                        selectedIndex = value.minute,
+                        onSelectedIndexChange = { emit(newMinute = it) },
+                        modifier = Modifier.weight(1f),
+                    )
+                    WheelColon()
+                    TimeWheel(
+                        items = SECOND_ITEMS,
+                        selectedIndex = value.second,
+                        onSelectedIndexChange = { emit(newSecond = it) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
+
+            Spacer(modifier = Modifier.width(OrbitSpacing.sm))
+            AmPmSelector(
+                isAm = isAm,
+                onSelect = { emit(newIsAm = it) },
+                modifier = Modifier.width(AmPmWidth),
+            )
         }
     }
 }
