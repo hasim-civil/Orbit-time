@@ -5,6 +5,8 @@ import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ktx.toObject
+import com.hasim.orbittime.util.OrbitClock
+import java.util.Date
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -12,6 +14,10 @@ import kotlinx.coroutines.tasks.await
 
 private const val USERS_COLLECTION = "users"
 private const val NOTIFICATIONS_SUBCOLLECTION = "notifications"
+
+/** Created-at, on the app's own clock ([OrbitClock]) rather than `Timestamp.now()`, so a
+ * notification's "5 minutes ago" is measured against the same clock the rest of the app runs on. */
+private fun appNow(): Timestamp = Timestamp(Date.from(OrbitClock.now()))
 
 /** Reads and writes a user's personal notification feed — one Firestore subcollection per user,
  * same pattern as their attendance/holidays/leaves subcollections. */
@@ -39,7 +45,7 @@ class NotificationRepository(
 
     suspend fun addLateArrival(uid: String, title: String, body: String): Result<Unit> = runCatching {
         collection(uid).add(
-            UserNotification(kind = NotificationKind.LATE_ARRIVAL, title = title, body = body, createdAt = Timestamp.now()),
+            UserNotification(kind = NotificationKind.LATE_ARRIVAL, title = title, body = body, createdAt = appNow()),
         ).await()
         Unit
     }
@@ -54,7 +60,7 @@ class NotificationRepository(
         val doc = collection(uid).document(id)
         val exists = doc.get().await().exists()
         if (!exists) {
-            doc.set(notification.copy(id = id, createdAt = Timestamp.now())).await()
+            doc.set(notification.copy(id = id, createdAt = appNow())).await()
         }
         Unit
     }

@@ -6,10 +6,18 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.ktx.toObject
+import com.hasim.orbittime.util.OrbitClock
+import java.util.Date
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+
+/** The punch instant, taken from the app's own clock ([OrbitClock]) rather than
+ * `Timestamp.now()`, so a manual Profile → App Time override is what actually gets stored on the
+ * attendance record — otherwise a check-in made under an override would be written at device
+ * time and disagree with every duration calculated from it. */
+private fun appNow(): Timestamp = Timestamp(Date.from(OrbitClock.now()))
 
 /** Carries an already-friendly, user-facing message up to the ViewModel layer. */
 class AttendanceException(message: String) : Exception(message)
@@ -72,7 +80,7 @@ class AttendanceRepository(
                 existing?.isCompleted == true ->
                     throw AttendanceException("You've already completed today's attendance.")
                 else ->
-                    transaction.set(docRef, AttendanceRecord(date = date, checkInAt = Timestamp.now()))
+                    transaction.set(docRef, AttendanceRecord(date = date, checkInAt = appNow()))
             }
             Unit
         }.await()
@@ -90,7 +98,7 @@ class AttendanceRepository(
                 existing.checkOutAt != null ->
                     throw AttendanceException("You've already checked out today.")
                 else ->
-                    transaction.update(docRef, "checkOutAt", Timestamp.now())
+                    transaction.update(docRef, "checkOutAt", appNow())
             }
             Unit
         }.await()

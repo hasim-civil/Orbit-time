@@ -11,6 +11,7 @@ import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyAttendance
+import com.hasim.orbittime.util.OrbitClock
 import com.hasim.orbittime.util.ReportsPerformance
 import com.hasim.orbittime.util.ReportsPunctuality
 import com.hasim.orbittime.util.ReportsStats
@@ -18,7 +19,6 @@ import com.hasim.orbittime.util.ReportsTrendPoint
 import com.hasim.orbittime.util.ReportsWorkHours
 import com.hasim.orbittime.util.observeIsOnline
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.TextStyle
@@ -156,7 +156,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             previousStart = previousMonthStart, previousEnd = previousMonthEnd,
             today = today, lateAfter = lateAfter, leaveDates = leaveDates,
         )
-        val workHours = ReportsStats.workHours(rangeRecords, monthStart, monthEnd, today, Instant.now())
+        val workHours = ReportsStats.workHours(rangeRecords, monthStart, monthEnd, today, OrbitClock.now())
         val punctuality = ReportsStats.punctuality(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates)
         val hasEnoughData = rangeRecords.values.any { it.checkInAt != null }
 

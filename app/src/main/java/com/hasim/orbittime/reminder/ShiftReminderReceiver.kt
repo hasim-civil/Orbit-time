@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.settings.AppTimeSettingsStore
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,10 @@ import kotlinx.coroutines.launch
  */
 class ShiftReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // The process can be cold-started straight into this receiver, with no activity having
+        // run — so the App Time setting has to be loaded here too, or "today" below would be
+        // resolved on device time while the rest of the app is on an override.
+        AppTimeSettingsStore.ensureInitialised(context)
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
