@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.hasim.orbittime.data.settings.AppTimeSettingsStore
 import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
@@ -75,12 +76,13 @@ import com.hasim.orbittime.ui.theme.Manrope
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.ImageCodec
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private enum class ProfileSubScreen { MAIN, EDIT_PROFILE, HOLIDAY_LIST, ADD_LEAVE }
+private enum class ProfileSubScreen { MAIN, EDIT_PROFILE, HOLIDAY_LIST, ADD_LEAVE, APP_TIME }
 
 // Exact values measured from the reference `Orbit Time.html` Profile section
 // (the `isProfile` sc-if block) — sizes/weights/colors not already covered by the
@@ -129,6 +131,7 @@ fun ProfileScreen(
             onEditProfileClick = { subScreen = ProfileSubScreen.EDIT_PROFILE },
             onHolidayListClick = { subScreen = ProfileSubScreen.HOLIDAY_LIST },
             onAddLeaveClick = { subScreen = ProfileSubScreen.ADD_LEAVE },
+            onAppTimeClick = { subScreen = ProfileSubScreen.APP_TIME },
         )
         ProfileSubScreen.EDIT_PROFILE -> EditProfileScreen(
             onBackClick = { subScreen = ProfileSubScreen.MAIN },
@@ -139,6 +142,9 @@ fun ProfileScreen(
             onBackClick = { subScreen = ProfileSubScreen.MAIN },
         )
         ProfileSubScreen.ADD_LEAVE -> AddLeaveScreen(
+            onBackClick = { subScreen = ProfileSubScreen.MAIN },
+        )
+        ProfileSubScreen.APP_TIME -> AppTimeScreen(
             onBackClick = { subScreen = ProfileSubScreen.MAIN },
         )
     }
@@ -156,6 +162,7 @@ fun ProfileContent(
     onEditProfileClick: () -> Unit = {},
     onHolidayListClick: () -> Unit = {},
     onAddLeaveClick: () -> Unit = {},
+    onAppTimeClick: () -> Unit = {},
 ) {
     var showSignOutConfirm by remember { mutableStateOf(false) }
 
@@ -209,6 +216,8 @@ fun ProfileContent(
                         hint = "Track your own leave",
                         onClick = onAddLeaveClick,
                     )
+
+                    AppTimeRow(onClick = onAppTimeClick)
 
                     ShiftReminderRow()
 
@@ -442,6 +451,27 @@ private fun ProfileMenuRow(
     }
 }
 
+/** Profile -> App Time. The hint line states which clock is in force right now, read live from
+ * [AppTimeSettingsStore], so the answer is visible without opening the screen. */
+@Composable
+private fun AppTimeRow(onClick: () -> Unit) {
+    val settings by AppTimeSettingsStore.settingsFlow.collectAsState()
+    val hint = if (settings.isManual) {
+        val setLabel = settings.customTime?.let { AttendanceTimeFormat.clockTimeWithSeconds(it) }
+        if (setLabel == null) "Custom time \u00b7 not your device clock" else "Custom time \u00b7 set to $setLabel"
+    } else {
+        "Device time \u00b7 your phone's clock"
+    }
+
+    ProfileMenuRow(
+        icon = { ClockIcon() },
+        iconBackground = OrbitColors.warningBg,
+        label = "App time",
+        hint = hint,
+        onClick = onClick,
+    )
+}
+
 /** Toggles the background "shift starts in 5 minutes" reminder — reads/writes
  * [ShiftReminderScheduler]'s own SharedPreferences flag directly rather than adding a parallel
  * settings store, since that's already the single source of truth every scheduling path
@@ -555,6 +585,22 @@ private fun CalendarIcon(size: Dp = 16.dp) {
         drawLine(OrbitColors.blue500, Offset(px(3f), px(8.5f)), Offset(px(17f), px(8.5f)), strokeWidth = px(1.6f))
         drawLine(OrbitColors.blue500, Offset(px(7f), px(3f)), Offset(px(7f), px(6f)), strokeWidth = px(1.6f))
         drawLine(OrbitColors.blue500, Offset(px(13f), px(3f)), Offset(px(13f), px(6f)), strokeWidth = px(1.6f))
+    }
+}
+
+@Composable
+private fun ClockIcon(size: Dp = 16.dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val scale = this.size.minDimension / 20f
+        fun px(v: Float) = v * scale
+        drawCircle(
+            color = OrbitColors.warningDark,
+            radius = px(7f),
+            center = Offset(px(10f), px(10f)),
+            style = Stroke(width = px(1.6f)),
+        )
+        drawLine(OrbitColors.warningDark, Offset(px(10f), px(6f)), Offset(px(10f), px(10.5f)), strokeWidth = px(1.6f))
+        drawLine(OrbitColors.warningDark, Offset(px(10f), px(10.5f)), Offset(px(13.2f), px(11.8f)), strokeWidth = px(1.6f))
     }
 }
 

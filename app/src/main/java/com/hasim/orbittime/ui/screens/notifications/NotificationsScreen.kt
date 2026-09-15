@@ -59,6 +59,7 @@ import com.hasim.orbittime.ui.theme.InstrumentSerif
 import com.hasim.orbittime.ui.theme.Manrope
 import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitSpacing
+import com.hasim.orbittime.util.OrbitClock
 import java.time.Duration
 import java.time.Instant
 
@@ -254,7 +255,7 @@ private fun NotificationKind.colors(): Pair<androidx.compose.ui.graphics.Color, 
 
 private fun relativeTimeLabel(instant: Instant?): String {
     if (instant == null) return ""
-    val minutes = Duration.between(instant, Instant.now()).toMinutes().coerceAtLeast(0)
+    val minutes = Duration.between(instant, OrbitClock.now()).toMinutes().coerceAtLeast(0)
     return when {
         minutes < 1 -> "Just now"
         minutes < 60 -> "$minutes min ago"

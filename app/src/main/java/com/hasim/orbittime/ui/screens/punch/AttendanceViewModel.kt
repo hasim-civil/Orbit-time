@@ -11,6 +11,7 @@ import com.hasim.orbittime.data.leave.LeaveRepository
 import com.hasim.orbittime.data.notification.NotificationKind
 import com.hasim.orbittime.data.notification.NotificationRepository
 import com.hasim.orbittime.data.notification.UserNotification
+import com.hasim.orbittime.data.settings.AppTimeSettingsStore
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.util.AttendanceRangeMode
@@ -19,6 +20,7 @@ import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyAttendance
+import com.hasim.orbittime.util.OrbitClock
 import com.hasim.orbittime.util.observeIsOnline
 import com.google.firebase.Timestamp
 import java.time.DayOfWeek
@@ -26,7 +28,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import kotlinx.coroutines.delay
@@ -93,7 +94,9 @@ class AttendanceViewModel(
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
     private var leaveDates: Set<LocalDate> = emptySet()
 
-    /** A holiday is not a missed day, so these dates are excluded from the absence check below. */
+    /** A holiday is not a missed day, so these dates are excluded from the absence check below —
+     * and nothing is required of the user on one, so a holiday that *was* worked counts as
+     * overtime in full rather than as a day short of the required hours. */
     private var holidayDates: Set<LocalDate> = emptySet()
 
     /** Each user's own late-arrival cutoff — their shift start, loaded from their profile. */
@@ -123,7 +126,23 @@ class AttendanceViewModel(
             observeHolidays(uid)
             observeConnectivity()
             tickElapsedWhileRunning()
+            observeAppTime()
             loadShiftStart(uid)
+        }
+    }
+
+    /**
+     * The Profile → App Time setting feeds [OrbitClock], which every figure below is measured
+     * against — so switching to (or away from) a manual time has to recompute them straight
+     * away rather than waiting for the next 30-second tick or attendance snapshot.
+     */
+    private fun observeAppTime() {
+        viewModelScope.launch {
+            AppTimeSettingsStore.settingsFlow.collect {
+                val current = _uiState.value
+                _uiState.update { it.copy(elapsed = computeElapsed(current.checkInAt, current.checkOutAt)) }
+                recomputeSummary()
+            }
         }
     }
 
@@ -229,6 +248,7 @@ class AttendanceViewModel(
                 rangeLabel = AttendanceTimeFormat.monthLabel(todayDate),
                 lateAfter = lateAfter,
                 leaveDates = leaveDates,
+                holidayDates = holidayDates,
             )
             AttendanceRangeMode.WEEK -> AttendanceStats.summarize(
                 records = rangeRecords,
@@ -238,6 +258,7 @@ class AttendanceViewModel(
                 rangeLabel = AttendanceTimeFormat.weekRangeLabel(weekStart, weekEnd),
                 lateAfter = lateAfter,
                 leaveDates = leaveDates,
+                holidayDates = holidayDates,
             )
         }
         _uiState.update { it.copy(isSummaryLoading = false, summary = summary) }
@@ -263,6 +284,7 @@ class AttendanceViewModel(
             rangeLabel = "",
             lateAfter = lateAfter,
             leaveDates = leaveDates,
+            holidayDates = holidayDates,
         )
         if (monthSummary.lateDays >= LATE_ALLOWANCE_PER_MONTH) {
             val monthKey = AttendanceTimeFormat.dateKey(monthStart).take(7) // "yyyy-MM"
@@ -330,11 +352,16 @@ class AttendanceViewModel(
         }
     }
 
-    private fun computeElapsed(checkInAt: Instant?, checkOutAt: Instant?): Duration {
-        val start = checkInAt ?: return Duration.ZERO
-        val end = checkOutAt ?: Instant.now()
-        return Duration.between(start, end).let { if (it.isNegative) Duration.ZERO else it }
-    }
+    /** Today's elapsed time, from the same rule the summaries use — and from the app's own
+     * clock, so a manual App Time override moves the counter with it. */
+    private fun computeElapsed(checkInAt: Instant?, checkOutAt: Instant?): Duration =
+        AttendanceStats.workedDuration(
+            checkInAt = checkInAt,
+            checkOutAt = checkOutAt,
+            date = todayDate,
+            today = todayDate,
+            now = OrbitClock.now(),
+        ) ?: Duration.ZERO
 
     fun checkIn() {
         val uid = authRepository.currentUser?.uid ?: return
@@ -352,10 +379,10 @@ class AttendanceViewModel(
     /** Logs a real "Late arrival" notification the moment a check-in lands after the user's own
      * shift start — never before the Firestore check-in write above has already succeeded. */
     private suspend fun maybeLogLateArrival(uid: String) {
-        val now = LocalTime.now()
+        val now = OrbitClock.localTime()
         val lateMinutes = Duration.between(lateAfter, now).toMinutes()
         if (lateMinutes <= 0) return
-        val body = "${AttendanceTimeFormat.shortDayLabel(todayDate)} — clocked in at ${AttendanceTimeFormat.clockTime(Instant.now())}, " +
+        val body = "${AttendanceTimeFormat.shortDayLabel(todayDate)} — clocked in at ${AttendanceTimeFormat.clockTime(OrbitClock.now())}, " +
             "$lateMinutes minute${if (lateMinutes == 1L) "" else "s"} after shift start."
         notificationRepository.addLateArrival(uid, title = "Late arrival logged", body = body)
     }
@@ -404,5 +431,5 @@ class AttendanceViewModel(
     }
 
     private fun LocalTime.toTimestamp(date: LocalDate): Timestamp =
-        Timestamp(Date.from(date.atTime(this).atZone(ZoneId.systemDefault()).toInstant()))
+        Timestamp(Date.from(date.atTime(this).atZone(OrbitClock.zone).toInstant()))
 }

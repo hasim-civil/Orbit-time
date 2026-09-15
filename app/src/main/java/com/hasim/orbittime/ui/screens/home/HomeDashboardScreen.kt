@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hasim.orbittime.ui.components.InlineBanner
+import com.hasim.orbittime.ui.components.rememberAppTimeNow
 import com.hasim.orbittime.ui.components.OrbitFloatingNavContentClearance
 import com.hasim.orbittime.ui.components.OrbitFloatingNavHost
 import com.hasim.orbittime.ui.components.OrbitTab
@@ -78,7 +79,8 @@ import com.hasim.orbittime.ui.theme.OrbitTypography
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
-import java.time.Instant
+import com.hasim.orbittime.util.OrbitClock
+import java.time.Duration
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -235,7 +237,13 @@ private fun LoadingBox(height: Dp) {
 
 @Composable
 private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
-    val today = AttendanceTimeFormat.today()
+    // The app's clock, ticking — so the time on screen stays right while Home is open, and
+    // follows the Profile -> App Time setting (device time by default, a manual override if the
+    // user set one). Read once here and used for the greeting, the date and the clock, so the
+    // three can never disagree by a second.
+    val now by rememberAppTimeNow()
+    val zoned = now.atZone(OrbitClock.zone)
+    val today = zoned.toLocalDate()
 
     Column(
         modifier = Modifier
@@ -246,7 +254,8 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
         Row(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "${AttendanceTimeFormat.greeting()}${if (userDisplayName.isBlank()) "" else ", $userDisplayName"}",
+                    text = "${AttendanceTimeFormat.greeting(zoned.toLocalTime())}" +
+                        (if (userDisplayName.isBlank()) "" else ", $userDisplayName"),
                     style = GreetingHeadlineStyle,
                     color = OrbitColors.ink900,
                 )
@@ -258,7 +267,7 @@ private fun GreetingCard(userDisplayName: String, uiState: PunchUiState) {
                 )
             }
             Text(
-                text = AttendanceTimeFormat.clockTime(Instant.now()),
+                text = AttendanceTimeFormat.clockTime(now),
                 style = ClockTimeStyle,
                 color = OrbitColors.ink900,
             )
@@ -402,7 +411,10 @@ private fun MonthlyAttendanceCard(
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
                 LegendRow(color = OrbitColors.warning, text = "${summary.absentDays} absent · ${summary.lateDays} late")
                 Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-                LegendRow(color = OrbitColors.accent, text = "${AttendanceTimeFormat.wholeHoursLabel(summary.overtime)} overtime")
+                LegendRow(
+                    color = balanceAccent(summary.overtimeBalance),
+                    text = "${AttendanceTimeFormat.signedDurationLabel(summary.overtimeBalance)} ${balanceNoun(summary.overtimeBalance)}",
+                )
             }
         }
     }
@@ -515,6 +527,22 @@ private fun AttendanceRing(
     }
 }
 
+/**
+ * Positive balance reads as a win, negative as something to make up, zero as neutral — the
+ * colour and the wording carry that, so "+2h 30m" and "−45m" are never mistaken for each
+ * other at a glance. Exactly the same three colours the rest of the app already uses for
+ * good/attention/neutral.
+ */
+private fun balanceAccent(balance: Duration): Color = when {
+    balance > Duration.ZERO -> OrbitColors.success
+    balance < Duration.ZERO -> OrbitColors.danger
+    else -> OrbitColors.ink900
+}
+
+private fun balanceLabel(balance: Duration): String = if (balance < Duration.ZERO) "Deficit" else "Overtime"
+
+private fun balanceNoun(balance: Duration): String = if (balance < Duration.ZERO) "deficit" else "overtime"
+
 @Composable
 private fun LegendRow(color: Color, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -596,12 +624,16 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
                 label = "Worked",
             )
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.info, targetValue = summary.leaveDays, label = "Leave")
+            // Minutes, not hours, are the unit the balance is counted in — "0h" for a 45-minute
+            // deficit was the visible half of the old positive-only overtime bug. The count-up
+            // therefore runs over whole minutes and formats them as "+2h 30m" / "−45m".
             SummaryCell(
                 modifier = Modifier.weight(1f),
-                accent = OrbitColors.ink900,
-                targetValue = summary.overtime.toHours().toInt(),
-                format = { "${it}h" },
-                label = "Overtime",
+                accent = balanceAccent(summary.overtimeBalance),
+                targetValue = summary.overtimeBalance.toMinutes().toInt(),
+                format = { AttendanceTimeFormat.signedMinutesLabel(it) },
+                label = balanceLabel(summary.overtimeBalance),
+                valueStyle = OrbitTypography.titleMedium,
             )
         }
     }
@@ -627,6 +659,9 @@ private fun SummaryCell(
     targetValue: Int,
     label: String,
     format: (Int) -> String = Int::toString,
+    // A plain day count is short; a signed "+2h 30m" balance is not, so that one cell asks for
+    // the next size down and stays on one line inside its third of the card.
+    valueStyle: TextStyle = OrbitTypography.titleLarge,
 ) {
     // Count-up: animates 0 -> targetValue once per value (LaunchedEffect keyed on it), then sits
     // completely still — a later recomposition with the same targetValue never replays it.
@@ -686,7 +721,12 @@ private fun SummaryCell(
                 Box(modifier = Modifier.size(7.dp).background(accent, CircleShape))
             }
             Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
-            Text(text = format(animatedValue.value.toInt()), style = OrbitTypography.titleLarge, color = OrbitColors.ink900)
+            Text(
+                text = format(animatedValue.value.toInt()),
+                style = valueStyle,
+                color = OrbitColors.ink900,
+                maxLines = 1,
+            )
             Spacer(modifier = Modifier.height(OrbitSpacing.xxs))
             Text(text = label, style = OrbitTypography.bodySmall, color = OrbitColors.slate600)
         }

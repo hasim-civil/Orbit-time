@@ -31,7 +31,7 @@ enum class DailyHistoryStatus(val label: String) {
     /** Checked in after the user's own shift start. */
     LATE("Late"),
 
-    /** Worked longer than [AttendanceStats.REQUIRED_WORKING_DURATION]. */
+    /** Worked longer than the day's required working time ([WorkingHours.requiredPerDay]). */
     OVERTIME("Overtime"),
 
     WORK_FROM_HOME("WFH"),
@@ -81,8 +81,8 @@ object DailyHistory {
      *
      * Late and Overtime are decided separately and from different things. Late comes from
      * [dayStatus] — the check-in measured against the user's scheduled shift start. Overtime
-     * comes from the actual worked duration against
-     * [AttendanceStats.REQUIRED_WORKING_DURATION], with no reference to the shift at all: two
+     * comes from the actual worked duration against the required working time
+     * ([WorkingHours.requiredPerDay]), with no reference to the shift at all: two
      * people working 10:00→18:10 and 11:00→19:10 are both 10 minutes over, whatever their
      * shifts say, and neither an early start nor a late one changes that.
      */
@@ -114,14 +114,15 @@ object DailyHistory {
 
     /**
      * How full a Daily History row's progress bar is: the worked duration against
-     * [AttendanceStats.REQUIRED_WORKING_DURATION] — the same 8 hours overtime is measured
-     * against, so the bar and the status agree about what a full day is.
+     * [WorkingHours.requiredPerDay] — the same required day overtime is measured against, so
+     * the bar and the status agree about what a full day is.
      *
      * Capped at 1f: an overtime day fills the bar exactly, it never overflows its card.
      */
-    fun progress(worked: Duration?): Float {
+    fun progress(worked: Duration?, workingHours: WorkingHours = WorkingHours.DEFAULT): Float {
         if (worked == null) return 0f
-        val required = AttendanceStats.REQUIRED_WORKING_DURATION.toMinutes().toFloat()
+        val required = workingHours.requiredPerDay.toMinutes().toFloat()
+        if (required <= 0f) return if (worked > Duration.ZERO) 1f else 0f
         return (worked.toMinutes().toFloat() / required).coerceIn(0f, 1f)
     }
 

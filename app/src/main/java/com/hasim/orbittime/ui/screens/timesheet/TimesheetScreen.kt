@@ -66,13 +66,14 @@ import com.hasim.orbittime.ui.theme.OrbitColors
 import com.hasim.orbittime.ui.theme.OrbitShapes
 import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
+import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyHistory
 import com.hasim.orbittime.util.DailyHistoryStatus
+import com.hasim.orbittime.util.OrbitClock
 import java.time.DayOfWeek
 import java.time.Duration
-import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -494,12 +495,17 @@ private fun DailyHistoryRow(day: TimesheetDay) {
     val today = AttendanceTimeFormat.today()
     val isOngoingToday = day.date == today && day.checkOutAt == null
 
-    // A past day with no checkout (a forgotten punch-out) has no reliable end time —
-    // never extend it to "now", or it would show an ever-growing, nonsensical total.
-    val duration: Duration? = day.checkInAt?.let { checkIn ->
-        val end = day.checkOutAt ?: if (isOngoingToday) Instant.now() else null
-        end?.let { Duration.between(checkIn, it).let { d -> if (d.isNegative) Duration.ZERO else d } }
-    }
+    // A past day with no checkout (a forgotten punch-out) has no reliable end time — never
+    // extend it to "now", or it would show an ever-growing, nonsensical total. That rule (and
+    // the app-clock "now" a running day is measured against) lives in AttendanceStats, so this
+    // row and the summaries can never disagree about what a day's worked time is.
+    val duration: Duration? = AttendanceStats.workedDuration(
+        checkInAt = day.checkInAt,
+        checkOutAt = day.checkOutAt,
+        date = day.date,
+        today = today,
+        now = OrbitClock.now(),
+    )
 
     // Exactly one status per row, decided in one pure place — so nothing is ever stated twice
     // (the time line used to repeat "· overtime" next to the "Overtime" status).
@@ -533,8 +539,8 @@ private fun DailyHistoryRow(day: TimesheetDay) {
         } ?: "—"
     }
 
-    // Measured against the required 8-hour working day, the same baseline overtime uses — so a
-    // full day fills the bar and an overtime day fills it exactly, never past its card.
+    // Measured against the required working day, the same baseline overtime uses — so a full
+    // day fills the bar and an overtime day fills it exactly, never past its card.
     val progress = DailyHistory.progress(duration)
     // The reference's "barGrow": each row's progress bar grows in from empty when it first appears.
     val animatedProgress = remember { Animatable(0f) }

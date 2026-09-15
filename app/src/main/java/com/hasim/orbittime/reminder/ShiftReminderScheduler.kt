@@ -15,6 +15,13 @@ import java.time.ZoneId
  * Schedules the "shift starts in 5 minutes" reminder with [AlarmManager] instead of a Compose
  * timer, so it still fires while the app is backgrounded or fully closed.
  *
+ * Deliberately the one place that stays on the *device* clock rather than
+ * [com.hasim.orbittime.util.OrbitClock]: AlarmManager triggers are real wall-clock instants, so a
+ * reminder computed from a manual Profile -> App Time override would be armed for the wrong
+ * real-world moment and fire at a time the user never asked for. Everything Orbit Time
+ * *calculates* (attendance, worked time, overtime) follows the app clock; when a system alarm
+ * physically goes off does not.
+ *
  * Uses `setAndAllowWhileIdle` (inexact, Doze-aware) rather than the exact-alarm APIs on purpose:
  * exact alarms require the user to separately grant "Schedule exact alarms" in system settings
  * on Android 12+, which is real friction for a reminder that only needs to land within a couple
