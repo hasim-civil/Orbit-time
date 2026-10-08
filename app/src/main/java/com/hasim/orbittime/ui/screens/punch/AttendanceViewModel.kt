@@ -8,15 +8,12 @@ import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.holiday.HolidayRepository
 import com.hasim.orbittime.data.leave.LeaveRepository
-import com.hasim.orbittime.data.notification.NotificationKind
-import com.hasim.orbittime.data.notification.NotificationRepository
-import com.hasim.orbittime.data.notification.UserNotification
+import com.hasim.orbittime.data.notification.AttendanceNotificationSync
 import com.hasim.orbittime.data.settings.AppTimeSettingsStore
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.reminder.ShiftReminderScheduler
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceStats
-import com.hasim.orbittime.util.AttendanceStatus
 import com.hasim.orbittime.util.AttendanceSummary
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyAttendance
@@ -30,6 +27,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.temporal.TemporalAdjusters
 import java.util.Date
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,9 +67,7 @@ data class PunchUiState(
 enum class PunchSuccessKind { CHECK_IN, CHECK_OUT, PAST_ATTENDANCE_ADDED }
 
 private const val TICK_INTERVAL_MS = 30_000L
-
-/** Company policy: this many late arrivals are pre-approved each calendar month. */
-private const val LATE_ALLOWANCE_PER_MONTH = 2
+private const val NOTIFICATION_SYNC_DEBOUNCE_MS = 1_500L
 
 class AttendanceViewModel(
     application: Application,
@@ -82,7 +78,7 @@ class AttendanceViewModel(
     private val profileRepository = UserProfileRepository()
     private val leaveRepository = LeaveRepository()
     private val holidayRepository = HolidayRepository()
-    private val notificationRepository = NotificationRepository()
+    private val notificationSync = AttendanceNotificationSync()
     private val todayDate = AttendanceTimeFormat.today()
     private val todayKey = AttendanceTimeFormat.dateKey(todayDate)
 
@@ -106,11 +102,14 @@ class AttendanceViewModel(
      * real denominator for shift-completion progress bars (was previously a hardcoded 8.5h). */
     private var shiftEnd: LocalTime = AttendanceStats.DEFAULT_SHIFT_END
 
-    /** Notification ids already confirmed-or-created this session, so repeated recomputes (e.g.
-     * every time the month-range listener ticks) don't re-check Firestore for facts we already
-     * know about — the real source of truth is still Firestore's own existence check in
-     * [NotificationRepository.createIfMissing], this is just a fast-path skip. */
-    private val notifiedThisSession = mutableSetOf<String>()
+    /** What the attendance notifications were last brought in line with — see
+     * [requestNotificationSync]. */
+    private var lastNotificationInputs: Any? = null
+    private var notificationSyncJob: Job? = null
+
+    /** Whether today's workday had ended at the last recompute, so the moment the shift ends
+     * re-derives the summary (today becomes Absent if nobody checked in). */
+    private var todayWorkdayOver = false
 
     private val _uiState = MutableStateFlow(PunchUiState())
     val uiState: StateFlow<PunchUiState> = _uiState.asStateFlow()
@@ -160,7 +159,7 @@ class AttendanceViewModel(
     private fun observeHolidays() {
         viewModelScope.launch {
             holidayRepository.observeHolidays()
-                .catch { /* Holidays only suppress a notification; a failure here shouldn't block attendance. */ }
+                .catch { /* Holidays only shape the summary; a failure here shouldn't block attendance. */ }
                 .collect { holidays ->
                     holidayDates = holidays.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
                     recomputeSummary()
@@ -249,6 +248,7 @@ class AttendanceViewModel(
                 lateAfter = lateAfter,
                 leaveDates = leaveDates,
                 holidayDates = holidayDates,
+                shiftEnd = shiftEnd,
             )
             AttendanceRangeMode.WEEK -> AttendanceStats.summarize(
                 records = rangeRecords,
@@ -259,74 +259,31 @@ class AttendanceViewModel(
                 lateAfter = lateAfter,
                 leaveDates = leaveDates,
                 holidayDates = holidayDates,
+                shiftEnd = shiftEnd,
             )
         }
         _uiState.update { it.copy(isSummaryLoading = false, summary = summary) }
-        checkAttendanceNotifications()
+        requestNotificationSync()
     }
 
     /**
-     * Evaluates the two data-driven notification rules against the current month's real
-     * attendance and creates a notification for each newly-true fact:
-     *  - the user has reached this month's [LATE_ALLOWANCE_PER_MONTH] approved late arrivals;
-     *  - a past scheduled day this month has no check-in at all (a missed day).
-     * Both use a deterministic notification id (a specific month, a specific date) so re-running
-     * this on every attendance-data refresh never creates a duplicate for the same fact.
+     * Re-runs the attendance notification rules whenever anything they depend on has changed —
+     * attendance, leave, holidays, the shift, or today's workday ending — but not on every
+     * 30-second tick. The listeners here are only the *trigger*: [AttendanceNotificationSync]
+     * re-reads every input from the server before deciding anything, so a listener that hasn't
+     * delivered yet (and still holds an empty set) can never produce a false "Missed attendance".
+     * Debounced, so a burst of listener updates at start-up becomes one run.
      */
-    private fun checkAttendanceNotifications() {
+    private fun requestNotificationSync() {
         val uid = authRepository.currentUser?.uid ?: return
-
-        val monthSummary = AttendanceStats.summarize(
-            records = rangeRecords,
-            rangeStart = monthStart,
-            rangeEnd = monthEnd,
-            today = todayDate,
-            rangeLabel = "",
-            lateAfter = lateAfter,
-            leaveDates = leaveDates,
-            holidayDates = holidayDates,
-        )
-        if (monthSummary.lateDays >= LATE_ALLOWANCE_PER_MONTH) {
-            val monthKey = AttendanceTimeFormat.dateKey(monthStart).take(7) // "yyyy-MM"
-            maybeNotify(uid, "late-allowance-$monthKey") {
-                UserNotification(
-                    kind = NotificationKind.ATTENDANCE_INFO,
-                    title = "Late allowance used",
-                    body = "You've reached your $LATE_ALLOWANCE_PER_MONTH approved late arrivals for " +
-                        "${AttendanceTimeFormat.monthLabel(monthStart)}.",
-                )
-            }
-        }
-
-        var date = monthStart
-        while (!date.isAfter(monthEnd)) {
-            val status = AttendanceStats.classifyDay(
-                checkInAt = rangeRecords[date]?.checkInAt,
-                date = date,
-                today = todayDate,
-                lateAfter = lateAfter,
-                isOnLeave = date in leaveDates,
-                isHoliday = date in holidayDates,
-            )
-            if (status == AttendanceStatus.ABSENT) {
-                val missedDate = date
-                maybeNotify(uid, "missed-${AttendanceTimeFormat.dateKey(missedDate)}") {
-                    UserNotification(
-                        kind = NotificationKind.LATE_ARRIVAL,
-                        title = "Missed attendance",
-                        body = "You didn't check in on ${AttendanceTimeFormat.shortDayLabel(missedDate)}.",
-                    )
-                }
-            }
-            date = date.plusDays(1)
-        }
-    }
-
-    private fun maybeNotify(uid: String, id: String, notification: () -> UserNotification) {
-        if (!notifiedThisSession.add(id)) return
-        viewModelScope.launch {
-            notificationRepository.createIfMissing(uid, id, notification())
-                .onFailure { notifiedThisSession.remove(id) }
+        val inputs = listOf(rangeRecords, leaveDates, holidayDates, lateAfter, shiftEnd, todayWorkdayOver)
+        if (inputs == lastNotificationInputs) return
+        lastNotificationInputs = inputs
+        notificationSyncJob?.cancel()
+        notificationSyncJob = viewModelScope.launch {
+            delay(NOTIFICATION_SYNC_DEBOUNCE_MS)
+            // A failed run (offline) clears the marker so the next change or tick retries.
+            notificationSync.sync(uid).onFailure { lastNotificationInputs = null }
         }
     }
 
@@ -344,10 +301,15 @@ class AttendanceViewModel(
             while (isActive) {
                 delay(TICK_INTERVAL_MS)
                 val current = _uiState.value
+                val workdayOver = AttendanceStats.isWorkdayOver(todayDate, todayDate, OrbitClock.now(), OrbitClock.zone, lateAfter, shiftEnd)
+                val workdayJustEnded = workdayOver != todayWorkdayOver
+                todayWorkdayOver = workdayOver
                 if (current.isCheckedIn) {
                     _uiState.update { it.copy(elapsed = computeElapsed(current.checkInAt, current.checkOutAt)) }
-                    recomputeSummary()
                 }
+                if (current.isCheckedIn || workdayJustEnded) recomputeSummary()
+                // Retries a sync that failed (e.g. offline) even when nothing else changes.
+                if (lastNotificationInputs == null) requestNotificationSync()
             }
         }
     }
@@ -370,21 +332,9 @@ class AttendanceViewModel(
             attendanceRepository.checkIn(uid, todayKey)
                 .onSuccess {
                     _uiState.update { it.copy(isSubmitting = false, successMessage = PunchSuccessKind.CHECK_IN) }
-                    maybeLogLateArrival(uid)
                 }
                 .onFailure { error -> _uiState.update { it.copy(isSubmitting = false, errorMessage = error.message) } }
         }
-    }
-
-    /** Logs a real "Late arrival" notification the moment a check-in lands after the user's own
-     * shift start — never before the Firestore check-in write above has already succeeded. */
-    private suspend fun maybeLogLateArrival(uid: String) {
-        val now = OrbitClock.localTime()
-        val lateMinutes = Duration.between(lateAfter, now).toMinutes()
-        if (lateMinutes <= 0) return
-        val body = "${AttendanceTimeFormat.shortDayLabel(todayDate)} — clocked in at ${AttendanceTimeFormat.clockTime(OrbitClock.now())}, " +
-            "$lateMinutes minute${if (lateMinutes == 1L) "" else "s"} after shift start."
-        notificationRepository.addLateArrival(uid, title = "Late arrival logged", body = body)
     }
 
     fun checkOut() {

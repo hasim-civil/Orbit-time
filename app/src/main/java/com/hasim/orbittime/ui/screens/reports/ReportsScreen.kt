@@ -54,6 +54,7 @@ import com.hasim.orbittime.ui.theme.OrbitSpacing
 import com.hasim.orbittime.ui.theme.OrbitTypography
 import com.hasim.orbittime.util.AttendanceRangeMode
 import com.hasim.orbittime.util.AttendanceTimeFormat
+import com.hasim.orbittime.util.ReportsOvertime
 import com.hasim.orbittime.util.ReportsPerformance
 import com.hasim.orbittime.util.ReportsPunctuality
 import com.hasim.orbittime.util.ReportsTrendPoint
@@ -175,6 +176,8 @@ fun ReportsContent(
                             AttendancePerformanceCard(uiState.performance)
                             Spacer(modifier = Modifier.height(ReportsSectionGap))
                             WorkHoursCard(uiState.workHours)
+                            Spacer(modifier = Modifier.height(ReportsSectionGap))
+                            OvertimeCard(uiState.overtime)
                             Spacer(modifier = Modifier.height(ReportsSectionGap))
                             PunctualityCard(uiState.punctuality)
                             Spacer(modifier = Modifier.height(ReportsSectionGap))
@@ -343,6 +346,34 @@ private fun WorkHoursCard(workHours: ReportsWorkHours) {
                 value = workHours.averageCheckOut?.let { formatClock(it) } ?: "—",
             )
         }
+    }
+}
+
+/** The selected month's overtime, from the same net balance Home's Overtime cell shows. */
+@Composable
+private fun OvertimeCard(overtime: ReportsOvertime) {
+    ReportsDarkCard {
+        ReportsSectionLabel("OVERTIME")
+        Spacer(modifier = Modifier.height(OrbitSpacing.md))
+
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(OrbitSpacing.sm)) {
+            ReportsStatTile(
+                modifier = Modifier.weight(1f),
+                label = "Total Overtime",
+                value = AttendanceTimeFormat.overtimeLabel(overtime.total),
+            )
+            ReportsStatTile(
+                modifier = Modifier.weight(1f),
+                label = "Overtime Days",
+                value = if (overtime.overtimeDays == 1) "1 day" else "${overtime.overtimeDays} days",
+            )
+        }
+        Spacer(modifier = Modifier.height(OrbitSpacing.sm))
+        ReportsStatTile(
+            modifier = Modifier.fillMaxWidth(),
+            label = "Average / Day",
+            value = AttendanceTimeFormat.overtimeLabel(overtime.averagePerOvertimeDay),
+        )
     }
 }
 

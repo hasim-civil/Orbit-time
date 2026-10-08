@@ -18,6 +18,7 @@ import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyHistory
 import com.hasim.orbittime.util.DayPunch
 import com.hasim.orbittime.util.HistoryDay
+import com.hasim.orbittime.util.OrbitClock
 import com.hasim.orbittime.util.observeIsOnline
 import java.time.LocalDate
 import java.time.LocalTime
@@ -66,11 +67,14 @@ class TimesheetViewModel(
     /**
      * The user's shift start — the late-arrival cutoff — as its own flow, so a late-arriving
      * profile re-derives the month through the same single pipeline as everything else instead
-     * of patching state on the side. The shift *end* isn't needed here: "late" comes from the
-     * start, and both overtime and the history progress bar are measured against the required
-     * 8-hour working day rather than the scheduled span.
+     * of patching state on the side. Overtime and the history progress bar don't use the shift
+     * at all: they're measured against the required 8-hour working day.
      */
     private val shiftStart = MutableStateFlow(AttendanceStats.DEFAULT_LATE_AFTER)
+
+    /** The shift end decides only when today's workday is over — after it, a today with no
+     * check-in reads Absent, exactly as Home and the notifications judge it. */
+    private val shiftEnd = MutableStateFlow(AttendanceStats.DEFAULT_SHIFT_END)
 
     private var monthJob: Job? = null
 
@@ -89,6 +93,7 @@ class TimesheetViewModel(
         viewModelScope.launch {
             val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull() ?: return@launch
             runCatching { LocalTime.parse(profile.shiftStart) }.getOrNull()?.let { shiftStart.value = it }
+            runCatching { LocalTime.parse(profile.shiftEnd) }.getOrNull()?.let { shiftEnd.value = it }
         }
     }
 
@@ -134,7 +139,8 @@ class TimesheetViewModel(
                 leaveRepository.observeLeaves(uid).retryForever().onStart { emit(emptyList()) },
                 holidayRepository.observeHolidays().retryForever().onStart { emit(emptyList()) },
                 shiftStart,
-            ) { records, leaves, holidays, lateAfter ->
+                shiftEnd,
+            ) { records, leaves, holidays, lateAfter, end ->
                 val punches = records.mapNotNull { record ->
                     runCatching { LocalDate.parse(record.date) }.getOrNull()?.let { date ->
                         date to DayPunch(
@@ -151,6 +157,8 @@ class TimesheetViewModel(
                     leaveLabels = leaves.leaveLabelsByDate(),
                     holidayNames = holidays.holidayNamesByDate(),
                     lateAfter = lateAfter,
+                    now = OrbitClock.now(),
+                    shiftEnd = end,
                 )
             }.collect { month ->
                 _uiState.update {

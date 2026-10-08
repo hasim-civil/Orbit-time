@@ -2,6 +2,7 @@ package com.hasim.orbittime.data.holiday
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.toObject
 import java.time.LocalDate
 import kotlinx.coroutines.channels.awaitClose
@@ -41,6 +42,17 @@ class HolidayRepository(
         }
         awaitClose { registration.remove() }
     }
+
+    /** One-shot read, served from the cache when offline — for the background shift reminder. */
+    suspend fun fetchHolidays(): List<HolidayRecord> =
+        holidaysCollection.get().await()
+            .documents.mapNotNull { doc -> doc.toObject<HolidayRecord>()?.copy(id = doc.id) }
+
+    /** One-shot read straight from the server (fails offline) — see
+     * [com.hasim.orbittime.data.attendance.AttendanceRepository.fetchRangeFromServer]. */
+    suspend fun fetchHolidaysFromServer(): List<HolidayRecord> =
+        holidaysCollection.get(Source.SERVER).await()
+            .documents.mapNotNull { doc -> doc.toObject<HolidayRecord>()?.copy(id = doc.id) }
 
     suspend fun saveHoliday(holiday: HolidayRecord): Result<Unit> = runCatching {
         val fields = holiday.toFields()

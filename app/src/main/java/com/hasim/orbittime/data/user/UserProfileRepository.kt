@@ -1,6 +1,7 @@
 package com.hasim.orbittime.data.user
 
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.toObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -24,6 +25,10 @@ class UserProfileRepository(
         val snapshot = firestore.collection(USERS_COLLECTION).document(uid).get().await()
         return snapshot.toObject<UserProfile>()
     }
+
+    /** One-shot read straight from the server (fails offline). */
+    suspend fun getProfileFromServer(uid: String): UserProfile? =
+        firestore.collection(USERS_COLLECTION).document(uid).get(Source.SERVER).await().toObject<UserProfile>()
 
     /** Live profile updates — lets every screen showing the user's photo/name/role stay in sync
      * the moment Edit Profile saves, with no manual refresh plumbing needed. */

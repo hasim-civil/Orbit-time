@@ -19,9 +19,9 @@ data class NotificationsUiState(
     val errorMessage: String? = null,
 )
 
-/** Backs the Notifications screen with a live Firestore feed — real, persisted alerts (today
- * that means late-arrival check-ins, logged by [com.hasim.orbittime.ui.screens.punch.AttendanceViewModel]
- * the moment a check-in actually lands late), not a static mock list. */
+/** Backs the Notifications screen with a live Firestore feed — real, persisted alerts written by
+ * [com.hasim.orbittime.data.notification.AttendanceNotificationSync] from the same day statuses
+ * Home, Timesheet and Reports show, not a static mock list. */
 class NotificationsViewModel(application: Application) : AndroidViewModel(application) {
 
     private val authRepository = AuthRepository()

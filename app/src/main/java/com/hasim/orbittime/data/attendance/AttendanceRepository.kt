@@ -5,6 +5,7 @@ import com.google.firebase.firestore.FieldPath
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.SetOptions
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.toObject
 import com.hasim.orbittime.util.OrbitClock
 import java.util.Date
@@ -50,6 +51,16 @@ class AttendanceRepository(
         }
         awaitClose { registration.remove() }
     }
+
+    /** One-shot read of [startDate]..[endDate] straight from the server — never the local cache,
+     * which can be incomplete — for decisions that must not be made on partial data. Fails
+     * when offline. */
+    suspend fun fetchRangeFromServer(uid: String, startDate: String, endDate: String): List<AttendanceRecord> =
+        firestore.collection("users").document(uid).collection("attendance")
+            .whereGreaterThanOrEqualTo(FieldPath.documentId(), startDate)
+            .whereLessThanOrEqualTo(FieldPath.documentId(), endDate)
+            .get(Source.SERVER).await()
+            .documents.mapNotNull { it.toObject<AttendanceRecord>() }
 
     /**
      * Real-time view of every recorded day between [startDate] and [endDate] (inclusive,

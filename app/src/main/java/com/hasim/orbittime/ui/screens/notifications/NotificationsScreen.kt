@@ -43,6 +43,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -177,7 +178,7 @@ private fun NotificationCard(notification: UserNotification, playEntrance: Boole
                 translationY = (1f - entrance.value) * with(density) { 12.dp.toPx() }
             }
             .clip(RoundedCornerShape(24.dp))
-            .background(OrbitColors.cream50.copy(alpha = if (notification.read) 0.7f else 0.96f))
+            .background(OrbitColors.cream50.copy(alpha = if (notification.read || notification.retracted) 0.7f else 0.96f))
             .clickable(onClick = onClick)
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -204,9 +205,29 @@ private fun NotificationCard(notification: UserNotification, playEntrance: Boole
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = notification.body, style = CardBodyStyle, color = OrbitColors.slate600)
+            Text(
+                text = notification.body,
+                style = CardBodyStyle,
+                color = if (notification.retracted) OrbitColors.slate300 else OrbitColors.slate600,
+                textDecoration = if (notification.retracted) TextDecoration.LineThrough else null,
+            )
+            // A withdrawn alert stays visible with the reason the data no longer supports it,
+            // rather than silently disappearing from the feed.
+            if (notification.retracted) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Withdrawn — ${notification.retractedReason}".trimEnd(' ', '—'),
+                    style = CardBodyStyle,
+                    color = OrbitColors.slate600,
+                )
+            }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = relativeTimeLabel(notification.createdAt?.toDate()?.toInstant()), style = CardTimeStyle, color = OrbitColors.slate300)
+            val timeLabel = relativeTimeLabel(notification.createdAt?.toDate()?.toInstant())
+            Text(
+                text = if (notification.isHistorical) "$timeLabel · from an earlier version" else timeLabel,
+                style = CardTimeStyle,
+                color = OrbitColors.slate300,
+            )
         }
     }
 }

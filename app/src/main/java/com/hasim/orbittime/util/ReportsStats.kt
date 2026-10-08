@@ -23,6 +23,14 @@ data class ReportsWorkHours(
     val averageCheckOut: LocalTime? = null,
 )
 
+data class ReportsOvertime(
+    /** The net `worked − required` balance — the very figure Home's Overtime cell shows. */
+    val total: Duration = Duration.ZERO,
+    val overtimeDays: Int = 0,
+    /** [total] spread over [overtimeDays]; zero when there were none. */
+    val averagePerOvertimeDay: Duration = Duration.ZERO,
+)
+
 data class ReportsPunctuality(
     val onTimePercent: Int = 0,
     val lateDays: Int = 0,
@@ -53,16 +61,18 @@ object ReportsStats {
         lateAfter: LocalTime,
         leaveDates: Set<LocalDate>,
         holidayDates: Set<LocalDate> = emptySet(),
+        shiftEnd: LocalTime? = null,
+        now: Instant = OrbitClock.now(),
     ): ReportsPerformance {
         val current = AttendanceStats.summarize(
             records = records, rangeStart = currentStart, rangeEnd = currentEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
-            holidayDates = holidayDates,
+            holidayDates = holidayDates, shiftEnd = shiftEnd, now = now,
         )
         val previous = AttendanceStats.summarize(
             records = records, rangeStart = previousStart, rangeEnd = previousEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
-            holidayDates = holidayDates,
+            holidayDates = holidayDates, shiftEnd = shiftEnd, now = now,
         )
         val previousCounted = previous.presentDays + previous.absentDays
         val delta = if (previousCounted > 0) current.attendanceRatePercent - previous.attendanceRatePercent else null
@@ -118,6 +128,36 @@ object ReportsStats {
         )
     }
 
+    /**
+     * Reports' overtime figures, taken straight from [AttendanceStats.summarize] — the same
+     * rollup, inputs and per-day `worked − required` balance Home's Overtime cell uses — rather
+     * than a second overtime calculation that could drift from it. So only days that actually
+     * carry a worked duration count (no check-in, or a past day never checked out, adds nothing),
+     * and leave/holiday/week-off dates with no attendance can never produce overtime.
+     */
+    fun overtime(
+        records: Map<LocalDate, DailyAttendance>,
+        rangeStart: LocalDate,
+        rangeEnd: LocalDate,
+        today: LocalDate,
+        lateAfter: LocalTime,
+        leaveDates: Set<LocalDate>,
+        holidayDates: Set<LocalDate> = emptySet(),
+        now: Instant = OrbitClock.now(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): ReportsOvertime {
+        val summary = AttendanceStats.summarize(
+            records = records, rangeStart = rangeStart, rangeEnd = rangeEnd, today = today, rangeLabel = "",
+            now = now, zone = zone, lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+        )
+        val days = summary.overtimeDays
+        return ReportsOvertime(
+            total = summary.overtimeBalance,
+            overtimeDays = days,
+            averagePerOvertimeDay = if (days > 0) summary.overtimeBalance.dividedBy(days.toLong()) else Duration.ZERO,
+        )
+    }
+
     /** Walks the same [AttendanceStats.classifyDay] every calendar/history view already uses, so
      * "late" here means exactly what it means everywhere else in the app — no separate rule. */
     fun punctuality(
@@ -129,6 +169,8 @@ object ReportsStats {
         leaveDates: Set<LocalDate>,
         holidayDates: Set<LocalDate> = emptySet(),
         zone: ZoneId = ZoneId.systemDefault(),
+        shiftEnd: LocalTime? = null,
+        now: Instant = OrbitClock.now(),
     ): ReportsPunctuality {
         var present = 0
         var absent = 0
@@ -139,7 +181,13 @@ object ReportsStats {
         val effectiveEnd = if (rangeEnd.isAfter(today)) today else rangeEnd
         while (!date.isAfter(effectiveEnd)) {
             val checkInAt = records[date]?.checkInAt
-            when (AttendanceStats.classifyDay(checkInAt, date, today, zone, lateAfter, date in leaveDates, date in holidayDates)) {
+            val workdayOver = AttendanceStats.isWorkdayOver(date, today, now, zone, lateAfter, shiftEnd)
+            when (
+                AttendanceStats.classifyDay(
+                    checkInAt, date, today, zone, lateAfter, date in leaveDates, date in holidayDates,
+                    isWorkdayOver = workdayOver,
+                )
+            ) {
                 AttendanceStatus.PRESENT -> present += 1
                 AttendanceStatus.LATE -> {
                     present += 1
