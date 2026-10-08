@@ -1,0 +1,211 @@
+name: Android CI
+
+# One workflow for every build of the app:
+#   - pull requests to main and pushes to main: tests + lint + release APK, uploaded as an artifact;
+#   - pushes to claude/** branches: the same, plus a beta prerelease (as before) for testing;
+#   - a v* tag push, or "Run workflow" with release_tag set: the same, plus the GitHub Release
+#     for that tag with the APK attached — the release the in-app updater offers.
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+    tags:
+      - "v*"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Publish a GitHub Release at this tag, e.g. v1.3 (must match versionName). Leave blank to only build."
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # app/build.gradle.kts compiles for Java 17 (sourceCompatibility/jvmTarget 17), and AGP 8.7
+      # needs JDK 17 to run.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # packages: '' is required, not cosmetic: the action's default is
+      # `tools platform-tools`, and Google has removed the obsolete `tools`
+      # package from the SDK repository, so sdkmanager now exits 1 with
+      # "Failed to find package 'tools'" and the whole job dies before Gradle
+      # starts. The runner image already ships platform-tools, and AGP fetches
+      # the platform/build-tools it needs itself.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+
+      # Caches Gradle's dependency and wrapper downloads between runs.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::Missing repository secret GOOGLE_SERVICES_JSON — add it under Settings > Secrets and variables > Actions, with the raw contents of app/google-services.json, then re-run this workflow."
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
+
+      - name: Read app version
+        id: version
+        run: |
+          name=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          code=$(sed -n 's/^ *versionCode = \([0-9][0-9]*\)$/\1/p' app/build.gradle.kts)
+          if [ -z "$name" ] || [ -z "$code" ]; then
+            echo "::error::Could not read versionName/versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "Building Orbit Time $name (versionCode $code)"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      # JVM unit tests — no emulator. A failure stops the job before any APK is built or published.
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Upload unit test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-report
+          path: app/build/reports/tests/
+          if-no-files-found: ignore
+
+      - name: Android Lint
+        run: ./gradlew lint --stacktrace
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-*.html
+          if-no-files-found: ignore
+
+      # The installable production APK: the release build type, signed (see app/build.gradle.kts
+      # for why it uses the same key as every earlier release). assembleRelease also runs
+      # lintVitalRelease.
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      # Proves what was built is what the release says it is: the APK's own manifest must carry
+      # this versionName/versionCode, and it must be signed (an unsigned APK can't be installed).
+      - name: Verify APK version and signature
+        run: |
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -n 1)
+          if [ -z "$apk" ] || [[ "$apk" == *unsigned* ]]; then
+            echo "::error::No signed release APK was produced"; exit 1
+          fi
+          build_tools=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          badging=$("$build_tools/aapt2" dump badging "$apk" | head -n 1)
+          echo "$badging"
+          echo "$badging" | grep -q "versionCode='${{ steps.version.outputs.code }}'" || { echo "::error::APK versionCode mismatch"; exit 1; }
+          echo "$badging" | grep -q "versionName='${{ steps.version.outputs.name }}'" || { echo "::error::APK versionName mismatch"; exit 1; }
+          "$build_tools/apksigner" verify --print-certs "$apk"
+          echo "APK_PATH=$apk" >> "$GITHUB_ENV"
+
+      # A GitHub Release is published only for a v* tag push or a manual run with release_tag.
+      # Its tag must match versionName — otherwise phones would download an APK whose version
+      # doesn't match the release and be offered the same "update" again on every launch.
+      - name: Work out what to publish
+        id: release
+        run: |
+          tag="${{ inputs.release_tag }}"
+          if [ -z "$tag" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            tag="${{ github.ref_name }}"
+          fi
+          if [ -z "$tag" ]; then
+            if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref_name }}" == claude/* ]]; then
+              echo "publish=beta" >> "$GITHUB_OUTPUT"
+            else
+              echo "publish=none" >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          tag_version="${tag#v}"; tag_version="${tag_version#.}"
+          if [ "$tag_version" != "${{ steps.version.outputs.name }}" ]; then
+            echo "::error::Tag $tag does not match versionName ${{ steps.version.outputs.name }}"
+            exit 1
+          fi
+          notes=".github/release-notes/${tag}.md"
+          if [ ! -f "$notes" ]; then
+            notes="$RUNNER_TEMP/notes.md"
+            printf 'Orbit Time %s, built from %s.\n' "$tag" "${{ github.sha }}" > "$notes"
+          fi
+          {
+            echo "publish=version"
+            echo "tag=$tag"
+            echo "notes=$notes"
+          } >> "$GITHUB_OUTPUT"
+
+      # OrbitTime-<tag>.apk is the asset name the in-app updater looks for first
+      # (UpdateConfig.selectApkAsset).
+      - name: Name APK for distribution
+        run: |
+          mkdir -p app/build/outputs/apk/distribution
+          label="${{ steps.release.outputs.tag }}"
+          if [ -z "$label" ]; then
+            label="v${{ steps.version.outputs.name }}"
+            [ "${{ steps.release.outputs.publish }}" = "beta" ] && label="Beta-${{ github.run_number }}"
+          fi
+          cp "$APK_PATH" "app/build/outputs/apk/distribution/OrbitTime-${label}.apk"
+          ls -l app/build/outputs/apk/distribution
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Orbit-Time-v${{ steps.version.outputs.name }}
+          path: app/build/outputs/apk/distribution/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release with APK
+        if: steps.release.outputs.publish == 'version'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Orbit Time ${{ steps.release.outputs.tag }}
+          body_path: ${{ steps.release.outputs.notes }}
+          # Tag the commit that was actually built, not whatever the default branch points at.
+          target_commitish: ${{ github.sha }}
+          prerelease: false
+          make_latest: "true"
+          files: app/build/outputs/apk/distribution/*.apk
+
+      # Beta prereleases are never offered by the in-app updater (releases/latest skips them).
+      - name: Publish beta prerelease with APK
+        if: steps.release.outputs.publish == 'beta'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: beta-${{ github.run_number }}
+          name: Orbit Time Beta ${{ github.run_number }}
+          body: |
+            Automated beta APK build (Orbit Time ${{ steps.version.outputs.name }}) from `${{ github.ref_name }}` @ ${{ github.sha }}.
+            For testing only — install over an existing copy (enable "install from unknown sources").
+          prerelease: true
+          files: app/build/outputs/apk/distribution/*.apk

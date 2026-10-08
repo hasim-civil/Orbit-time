@@ -91,3 +91,14 @@ fun displayVersion(raw: String): String {
     val parsed = AppVersion.parse(raw)
     return if (parsed.isValid) "v$parsed" else raw
 }
+
+/**
+ * Whether to show the update prompt for [latestTag] given the release the user last answered
+ * "Later" to. Compared by version number, so `v.1.3` and `v1.3` count as the same release; any
+ * other (newer) release is prompted for as usual.
+ */
+fun shouldPromptForRelease(latestTag: String, dismissedTag: String?): Boolean {
+    if (dismissedTag == null) return true
+    val dismissed = AppVersion.parse(dismissedTag)
+    return !dismissed.isValid || AppVersion.parse(latestTag) != dismissed
+}

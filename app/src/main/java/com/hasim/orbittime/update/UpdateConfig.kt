@@ -7,9 +7,9 @@ package com.hasim.orbittime.update
  * releases, and how this project names its APK assets — lives here, so changing the
  * repository or the asset naming never means touching the checker, the downloader or the UI.
  *
- * The naming convention is the one the release workflow already uses
- * (`.github/workflows/build-debug-apk.yml`): a release tagged `v.1.1` publishes
- * `OrbitTime-v.1.1.apk`. Nothing here is a secret — the repository is public and the
+ * The naming convention is the one the release workflow uses (`.github/workflows/android-ci.yml`):
+ * a release tagged `v1.3` publishes `OrbitTime-v1.3.apk` (earlier releases were tagged `v.1.1`,
+ * `v.1.2`; [AppVersion] reads both styles). Nothing here is a secret — the repository is public and the
  * endpoints below are read without any token or sign-in, which is deliberate: an APK is
  * decompilable, so a credential shipped inside one is a published credential.
  */

@@ -13,8 +13,8 @@ android {
         applicationId = "com.hasim.orbittime"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.2"
+        versionCode = 3
+        versionName = "1.3"
     }
 
     signingConfigs {
@@ -34,6 +34,14 @@ android {
 
     buildTypes {
         release {
+            // Signed with the same shared key every published Orbit Time APK so far has used
+            // (v.1.1 and v.1.2 were debug builds signed with it). Android only installs an update
+            // over an existing app when both carry the same signature, and Firebase's Google
+            // Sign-In is registered against this key's SHA-1 — so a new key here would make the
+            // in-app updater fail on every phone and break Google Sign-In. Moving to a private
+            // release key is a separate, deliberate step: it needs its SHA-1 added in Firebase
+            // and a one-time reinstall for everyone.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

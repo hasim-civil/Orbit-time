@@ -48,17 +48,24 @@ class UpdateViewModel @JvmOverloads constructor(
 
     init {
         viewModelScope.launch {
-            val installed = ApkInstaller.installedVersionName(getApplication<Application>())
+            val context = getApplication<Application>()
+            val installed = ApkInstaller.installedVersionName(context)
             when (val result = checker.check(installed)) {
                 // Up to date, offline, rate-limited or unreadable release data: show nothing.
                 is UpdateCheck.None -> Unit
-                is UpdateCheck.Available -> _uiState.update { it.copy(release = result.release) }
+                is UpdateCheck.Available ->
+                    // A release the user already said "Later" to stays quiet; a newer one doesn't.
+                    if (UpdatePromptStore.shouldPrompt(result.release.tag, UpdatePromptStore.dismissedTag(context))) {
+                        _uiState.update { it.copy(release = result.release) }
+                    }
             }
         }
     }
 
-    /** "Later" — hides the dialog for this app launch and stops any download in flight. */
+    /** "Later" — hides the dialog, stops any download in flight, and mutes this release on later
+     * launches (see [UpdatePromptStore]); a newer release is still offered. */
     fun dismiss() {
+        _uiState.value.release?.let { UpdatePromptStore.rememberDismissed(getApplication(), it.tag) }
         downloadJob?.cancel()
         downloadJob = null
         _uiState.update { it.copy(dismissed = true, isDownloading = false, progress = null) }
