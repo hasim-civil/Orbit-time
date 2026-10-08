@@ -157,9 +157,11 @@ object AttendanceStats {
     /**
      * Rolls a date range up into the figures Home, Punch and Reports all show.
      *
-     * Day counts (present/absent/late/leave, and so the attendance rate) follow the schedule
-     * exactly as before: only scheduled Mon–Sat dates are counted, a leave day is leave rather
-     * than absent, and nothing in the future is held against the user.
+     * Day counts (present/absent/late/leave, and so the attendance rate) are each date's
+     * [classifyDay] status, exactly as Daily History shows it: a holiday, a leave day or a
+     * non-scheduled day is never absent, a late day is present *and* late, and nothing in the
+     * future is held against the user. The rate is attendance days over attendance-required
+     * days — `present / (present + absent)` — so leave, holidays and week-offs sit outside it.
      *
      * Worked time and [AttendanceSummary.overtimeBalance] are deliberately *not* limited to
      * scheduled days: they come from every date that actually carries attendance, so hours
@@ -199,18 +201,19 @@ object AttendanceStats {
             val isOnLeave = date in leaveDates
             val isHoliday = date in holidayDates
 
-            if (workingHours.isWorkingDay(date)) {
-                if (isOnLeave) {
-                    leave += 1
-                } else {
-                    when {
-                        checkInAt != null -> {
-                            present += 1
-                            if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) late += 1
-                        }
-                        date.isBefore(today) -> absent += 1
-                    }
+            // The day counts come from [classifyDay] — the same per-date verdict Daily History,
+            // the Timesheet calendar and the missed-day notification use — so a date can never be
+            // "Holiday" on the list and "Absent" in this rollup. A late day is still attendance:
+            // it counts towards present (and the rate) as well as towards late.
+            when (classifyDay(checkInAt, date, today, zone, lateAfter, isOnLeave, isHoliday, workingHours)) {
+                AttendanceStatus.PRESENT -> present += 1
+                AttendanceStatus.LATE -> {
+                    present += 1
+                    late += 1
                 }
+                AttendanceStatus.ABSENT -> absent += 1
+                AttendanceStatus.LEAVE -> leave += 1
+                AttendanceStatus.HOLIDAY, AttendanceStatus.WEEKEND, null -> Unit
             }
 
             val dayWorked = workedDuration(record, date, today, now)
@@ -248,8 +251,10 @@ object AttendanceStats {
      * nothing to say yet: today, or a future scheduled day, with no check-in.
      *
      * The order below is the rule, and it is deliberate:
-     *  - a holiday or an approved leave outranks both the punch record and "absent", so adding
-     *    either for a past date re-labels that date on its own — no attendance record needed.
+     *  - leave outranks a holiday (Leave > Holiday > Week Off > Attendance > Absent): a user's
+     *    own leave on an organization holiday reads as their leave;
+     *  - a leave or a holiday outranks both the punch record and "absent", so adding either for
+     *    a past date re-labels that date on its own — no attendance record needed.
      *    The hours worked on such a day are not discarded; [DailyHistory] still shows them, and
      *    [summarize] still counts them;
      *  - a non-scheduled day is never "absent" — nobody was expected in — and is never "late"
@@ -267,8 +272,8 @@ object AttendanceStats {
         isHoliday: Boolean = false,
         workingHours: WorkingHours = WorkingHours.DEFAULT,
     ): AttendanceStatus? = when {
-        isHoliday -> AttendanceStatus.HOLIDAY
         isOnLeave -> AttendanceStatus.LEAVE
+        isHoliday -> AttendanceStatus.HOLIDAY
         !workingHours.isWorkingDay(date) -> AttendanceStatus.WEEKEND
         checkInAt != null ->
             if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT

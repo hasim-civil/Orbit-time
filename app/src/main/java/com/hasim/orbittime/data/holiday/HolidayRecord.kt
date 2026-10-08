@@ -1,8 +1,9 @@
 package com.hasim.orbittime.data.holiday
 
 /**
- * One entry in a user's personal holiday calendar, stored at `users/{uid}/holidays/{id}`.
- * [date] is "yyyy-MM-dd". [id] is blank for a not-yet-saved record.
+ * One organization-wide holiday, stored at `holidays/{id}` and shared by every employee.
+ * [date] is "yyyy-MM-dd". [id] is the document id — blank for a not-yet-saved record — and is
+ * never written into the document itself.
  */
 data class HolidayRecord(
     val id: String = "",

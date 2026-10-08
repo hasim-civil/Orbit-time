@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.holiday.HolidayRepository
 import com.hasim.orbittime.data.notification.NotificationRepository
 import com.hasim.orbittime.data.user.UserProfileRepository
+import com.hasim.orbittime.util.HolidayAccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,12 +29,20 @@ class MainChromeViewModel(application: Application) : AndroidViewModel(applicati
     private val authRepository = AuthRepository()
     private val profileRepository = UserProfileRepository()
     private val notificationRepository = NotificationRepository()
+    private val holidayRepository = HolidayRepository()
 
     private val _uiState = MutableStateFlow(MainChromeUiState())
     val uiState: StateFlow<MainChromeUiState> = _uiState.asStateFlow()
 
     init {
-        val uid = authRepository.currentUser?.uid
+        val user = authRepository.currentUser
+        val uid = user?.uid
+        if (user != null && HolidayAccess.canManageHolidays(user.email, user.isEmailVerified)) {
+            // Holidays used to be per-user. The Holiday Manager's own are the organization's, so
+            // they're published to the shared collection once, as soon as the manager is in the
+            // app — nobody else's are copied anywhere. Idempotent; a failure retries next launch.
+            viewModelScope.launch { holidayRepository.migrateLegacyHolidays(user.uid) }
+        }
         if (uid != null) {
             viewModelScope.launch {
                 profileRepository.observeProfile(uid)

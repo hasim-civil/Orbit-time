@@ -208,7 +208,7 @@ fun ProfileContent(
                         icon = { CalendarIcon() },
                         iconBackground = OrbitColors.infoBg,
                         label = "Holiday list",
-                        hint = "Your personal holiday calendar",
+                        hint = "Your organization's holiday calendar",
                         onClick = onHolidayListClick,
                     )
                     ProfileMenuRow(

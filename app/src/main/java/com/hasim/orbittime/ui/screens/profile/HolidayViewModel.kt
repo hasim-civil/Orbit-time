@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.auth.AuthRepository
 import com.hasim.orbittime.data.holiday.HolidayRecord
 import com.hasim.orbittime.data.holiday.HolidayRepository
+import com.hasim.orbittime.util.HolidayAccess
 import java.time.LocalDate
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +20,13 @@ data class HolidayUiState(
     val holidays: List<HolidayRecord> = emptyList(),
     val errorMessage: String? = null,
     val isSaving: Boolean = false,
+    /** Whether to show Add/Edit/Delete — UX only; firestore.rules is what actually refuses a
+     * write from anyone but the Holiday Manager. */
+    val canManageHolidays: Boolean = false,
 )
 
-/** Backs the Holiday List screen — a purely personal, self-managed calendar. */
+/** Backs the Holiday List screen — the organization's shared holiday calendar. Everyone can
+ * view it; only the Holiday Manager ([HolidayAccess]) can change it. */
 class HolidayViewModel(application: Application) : AndroidViewModel(application) {
 
     private val authRepository = AuthRepository()
@@ -31,12 +36,14 @@ class HolidayViewModel(application: Application) : AndroidViewModel(application)
     val uiState: StateFlow<HolidayUiState> = _uiState.asStateFlow()
 
     init {
-        val uid = authRepository.currentUser?.uid
-        if (uid == null) {
+        val user = authRepository.currentUser
+        if (user == null) {
             _uiState.update { it.copy(isLoading = false, errorMessage = "You're not signed in.") }
         } else {
+            val canManage = HolidayAccess.canManageHolidays(user.email, user.isEmailVerified)
+            _uiState.update { it.copy(canManageHolidays = canManage) }
             viewModelScope.launch {
-                holidayRepository.observeHolidays(uid)
+                holidayRepository.observeHolidays()
                     .catch { error -> _uiState.update { it.copy(isLoading = false, errorMessage = error.message) } }
                     .collect { holidays ->
                         val sorted = holidays.sortedBy { runCatching { LocalDate.parse(it.date) }.getOrNull() ?: LocalDate.MAX }
@@ -51,22 +58,20 @@ class HolidayViewModel(application: Application) : AndroidViewModel(application)
      * id — is not naturally idempotent, so firing it twice before the first write lands would
      * create two duplicate holidays. */
     fun saveHoliday(holiday: HolidayRecord) {
-        val uid = authRepository.currentUser?.uid ?: return
-        if (_uiState.value.isSaving) return
+        if (!_uiState.value.canManageHolidays || _uiState.value.isSaving) return
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
-            holidayRepository.saveHoliday(uid, holiday)
+            holidayRepository.saveHoliday(holiday)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
             _uiState.update { it.copy(isSaving = false) }
         }
     }
 
     fun deleteHoliday(holidayId: String) {
-        val uid = authRepository.currentUser?.uid ?: return
-        if (_uiState.value.isSaving) return
+        if (!_uiState.value.canManageHolidays || _uiState.value.isSaving) return
         _uiState.update { it.copy(isSaving = true, errorMessage = null) }
         viewModelScope.launch {
-            holidayRepository.deleteHoliday(uid, holidayId)
+            holidayRepository.deleteHoliday(holidayId)
                 .onFailure { error -> _uiState.update { it.copy(errorMessage = error.message) } }
             _uiState.update { it.copy(isSaving = false) }
         }

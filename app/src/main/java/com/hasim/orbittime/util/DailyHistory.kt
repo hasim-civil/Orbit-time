@@ -13,7 +13,7 @@ import java.time.ZoneId
  * "Overtime" status on the right).
  */
 enum class DailyHistoryStatus(val label: String) {
-    /** A date in the user's own holiday calendar, worked or not. */
+    /** A date in the organization's holiday calendar, worked or not. */
     HOLIDAY("Holiday"),
 
     /** A non-scheduled day (the work week is Mon–Sat, so this is Sunday). */
@@ -94,11 +94,12 @@ object DailyHistory {
         worked: Duration?,
         locationName: String?,
     ): DailyHistoryStatus = when {
-        // A holiday or a leave record outranks whatever the punch record says: the date reads
-        // "Holiday"/"Leave" even when it also carries attendance. The hours themselves are not
+        // A leave record or a holiday outranks whatever the punch record says (and leave
+        // outranks holiday — [AttendanceStats.classifyDay] decides that): the date reads
+        // "Leave"/"Holiday" even when it also carries attendance. The hours themselves are not
         // thrown away — the row still shows the times and the total beside this status.
-        dayStatus == AttendanceStatus.HOLIDAY -> DailyHistoryStatus.HOLIDAY
         dayStatus == AttendanceStatus.LEAVE -> DailyHistoryStatus.LEAVE
+        dayStatus == AttendanceStatus.HOLIDAY -> DailyHistoryStatus.HOLIDAY
         !hasCheckIn -> when (dayStatus) {
             AttendanceStatus.WEEKEND -> DailyHistoryStatus.WEEKEND
             AttendanceStatus.ABSENT -> DailyHistoryStatus.ABSENT

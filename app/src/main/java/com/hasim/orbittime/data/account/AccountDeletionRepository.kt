@@ -32,6 +32,8 @@ class AccountDeletionRepository(
     suspend fun deleteAccount(uid: String): Result<Unit> = runCatching {
         val userDoc = firestore.collection("users").document(uid)
         deleteAllDocuments(userDoc.collection("attendance"))
+        // Legacy per-user holidays only; the organization-wide /holidays collection is shared and
+        // is never touched by one account being deleted.
         deleteAllDocuments(userDoc.collection("holidays"))
         deleteAllDocuments(userDoc.collection("leaves"))
         deleteAllDocuments(userDoc.collection("notifications"))
