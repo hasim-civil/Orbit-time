@@ -71,6 +71,10 @@ data class AttendanceSummary(
      * actually 30 minutes short.
      */
     val overtimeBalance: Duration = Duration.ZERO,
+    /** How many of the days added into [overtimeBalance] added a positive amount — the days that
+     * were actually worked beyond what they required. Counted in the same pass, from the same
+     * per-day figure, so it can never disagree with the balance. */
+    val overtimeDays: Int = 0,
     val attendanceRatePercent: Int = 0,
 )
 
@@ -193,6 +197,7 @@ object AttendanceStats {
         var leave = 0
         var worked = Duration.ZERO
         var balance = Duration.ZERO
+        var overtimeDays = 0
 
         var date = rangeStart
         while (!date.isAfter(rangeEnd)) {
@@ -225,7 +230,9 @@ object AttendanceStats {
                 // day the user is not 7h55m in deficit, they simply haven't finished yet. Once
                 // they check out, the day's real (possibly negative) balance counts in full.
                 val isStillRunning = record?.checkOutAt == null
-                balance += if (isStillRunning) dayBalance.coerceAtLeast(Duration.ZERO) else dayBalance
+                val credited = if (isStillRunning) dayBalance.coerceAtLeast(Duration.ZERO) else dayBalance
+                balance += credited
+                if (credited > Duration.ZERO) overtimeDays += 1
             }
 
             date = date.plusDays(1)
@@ -242,6 +249,7 @@ object AttendanceStats {
             leaveDays = leave,
             worked = worked,
             overtimeBalance = balance,
+            overtimeDays = overtimeDays,
             attendanceRatePercent = rate,
         )
     }

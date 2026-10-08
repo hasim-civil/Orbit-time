@@ -23,6 +23,14 @@ data class ReportsWorkHours(
     val averageCheckOut: LocalTime? = null,
 )
 
+data class ReportsOvertime(
+    /** The net `worked − required` balance — the very figure Home's Overtime cell shows. */
+    val total: Duration = Duration.ZERO,
+    val overtimeDays: Int = 0,
+    /** [total] spread over [overtimeDays]; zero when there were none. */
+    val averagePerOvertimeDay: Duration = Duration.ZERO,
+)
+
 data class ReportsPunctuality(
     val onTimePercent: Int = 0,
     val lateDays: Int = 0,
@@ -115,6 +123,36 @@ object ReportsStats {
             averagePerDay = if (daysWithHours > 0) totalWorked.dividedBy(daysWithHours.toLong()) else Duration.ZERO,
             averageCheckIn = checkInSeconds.averageSecondOfDay(),
             averageCheckOut = checkOutSeconds.averageSecondOfDay(),
+        )
+    }
+
+    /**
+     * Reports' overtime figures, taken straight from [AttendanceStats.summarize] — the same
+     * rollup, inputs and per-day `worked − required` balance Home's Overtime cell uses — rather
+     * than a second overtime calculation that could drift from it. So only days that actually
+     * carry a worked duration count (no check-in, or a past day never checked out, adds nothing),
+     * and leave/holiday/week-off dates with no attendance can never produce overtime.
+     */
+    fun overtime(
+        records: Map<LocalDate, DailyAttendance>,
+        rangeStart: LocalDate,
+        rangeEnd: LocalDate,
+        today: LocalDate,
+        lateAfter: LocalTime,
+        leaveDates: Set<LocalDate>,
+        holidayDates: Set<LocalDate> = emptySet(),
+        now: Instant = OrbitClock.now(),
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): ReportsOvertime {
+        val summary = AttendanceStats.summarize(
+            records = records, rangeStart = rangeStart, rangeEnd = rangeEnd, today = today, rangeLabel = "",
+            now = now, zone = zone, lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+        )
+        val days = summary.overtimeDays
+        return ReportsOvertime(
+            total = summary.overtimeBalance,
+            overtimeDays = days,
+            averagePerOvertimeDay = if (days > 0) summary.overtimeBalance.dividedBy(days.toLong()) else Duration.ZERO,
         )
     }
 

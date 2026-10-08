@@ -13,6 +13,7 @@ import com.hasim.orbittime.util.AttendanceStats
 import com.hasim.orbittime.util.AttendanceTimeFormat
 import com.hasim.orbittime.util.DailyAttendance
 import com.hasim.orbittime.util.OrbitClock
+import com.hasim.orbittime.util.ReportsOvertime
 import com.hasim.orbittime.util.ReportsPerformance
 import com.hasim.orbittime.util.ReportsPunctuality
 import com.hasim.orbittime.util.ReportsStats
@@ -54,6 +55,7 @@ data class ReportsUiState(
     val canShowNextMonth: Boolean = false,
     val performance: ReportsPerformance = ReportsPerformance(),
     val workHours: ReportsWorkHours = ReportsWorkHours(),
+    val overtime: ReportsOvertime = ReportsOvertime(),
     val punctuality: ReportsPunctuality = ReportsPunctuality(),
     val trendMode: AttendanceRangeMode = AttendanceRangeMode.WEEK,
     val trendPoints: List<ReportsTrendPoint> = emptyList(),
@@ -199,6 +201,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             today = today, lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
         )
         val workHours = ReportsStats.workHours(rangeRecords, monthStart, monthEnd, today, OrbitClock.now())
+        val overtime = ReportsStats.overtime(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates)
         val punctuality = ReportsStats.punctuality(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates)
         val hasEnoughData = rangeRecords.values.any { it.checkInAt != null }
 
@@ -212,6 +215,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                 canShowNextMonth = !monthStart.plusMonths(1).isAfter(today),
                 performance = performance,
                 workHours = workHours,
+                overtime = overtime,
                 punctuality = punctuality,
                 trendPoints = trendPoints(it.trendMode),
             )

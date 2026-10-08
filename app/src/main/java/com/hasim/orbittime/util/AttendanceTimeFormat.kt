@@ -95,6 +95,20 @@ object AttendanceTimeFormat {
         }
     }
 
+    /**
+     * Reports' overtime figures: "+30 min", "−45 min", "0 min" under an hour, and
+     * [signedDurationLabel]'s "+1h 15m" from an hour up. Sub-minute remainders are dropped.
+     */
+    fun overtimeLabel(duration: Duration): String {
+        val totalMinutes = duration.toMinutes()
+        if (abs(totalMinutes) >= 60L) return signedDurationLabel(duration)
+        return when {
+            totalMinutes > 0L -> "+$totalMinutes min"
+            totalMinutes < 0L -> "$MINUS_SIGN${abs(totalMinutes)} min"
+            else -> "0 min"
+        }
+    }
+
     /** [signedDurationLabel] from a plain minute count — for the Home cell, whose count-up
      * animation runs over whole minutes. */
     fun signedMinutesLabel(totalMinutes: Int): String = signedDurationLabel(Duration.ofMinutes(totalMinutes.toLong()))
