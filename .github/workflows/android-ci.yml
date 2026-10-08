@@ -172,7 +172,7 @@ jobs:
           label="${{ steps.release.outputs.tag }}"
           if [ -z "$label" ]; then
             label="v${{ steps.version.outputs.name }}"
-            [ "${{ steps.release.outputs.publish }}" = "beta" ] && label="Beta-${{ github.run_number }}"
+            [ "${{ steps.release.outputs.publish }}" = "beta" ] && label="Beta-v${{ steps.version.outputs.name }}-${{ github.run_number }}"
           fi
           cp "$APK_PATH" "app/build/outputs/apk/distribution/OrbitTime-${label}.apk"
           ls -l app/build/outputs/apk/distribution
@@ -198,12 +198,14 @@ jobs:
           files: app/build/outputs/apk/distribution/*.apk
 
       # Beta prereleases are never offered by the in-app updater (releases/latest skips them).
+      # The version is part of the tag because this workflow's run numbers restarted at 1 when it
+      # was renamed, and plain beta-<n> tags up to beta-70 already exist from the old workflow.
       - name: Publish beta prerelease with APK
         if: steps.release.outputs.publish == 'beta'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: beta-${{ github.run_number }}
-          name: Orbit Time Beta ${{ github.run_number }}
+          tag_name: beta-v${{ steps.version.outputs.name }}-${{ github.run_number }}
+          name: Orbit Time Beta v${{ steps.version.outputs.name }}-${{ github.run_number }}
           body: |
             Automated beta APK build (Orbit Time ${{ steps.version.outputs.name }}) from `${{ github.ref_name }}` @ ${{ github.sha }}.
             For testing only — install over an existing copy (enable "install from unknown sources").
