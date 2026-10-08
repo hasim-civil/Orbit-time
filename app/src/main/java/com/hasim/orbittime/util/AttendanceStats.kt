@@ -251,8 +251,10 @@ object AttendanceStats {
      * nothing to say yet: today, or a future scheduled day, with no check-in.
      *
      * The order below is the rule, and it is deliberate:
-     *  - a holiday or an approved leave outranks both the punch record and "absent", so adding
-     *    either for a past date re-labels that date on its own — no attendance record needed.
+     *  - leave outranks a holiday (Leave > Holiday > Week Off > Attendance > Absent): a user's
+     *    own leave on an organization holiday reads as their leave;
+     *  - a leave or a holiday outranks both the punch record and "absent", so adding either for
+     *    a past date re-labels that date on its own — no attendance record needed.
      *    The hours worked on such a day are not discarded; [DailyHistory] still shows them, and
      *    [summarize] still counts them;
      *  - a non-scheduled day is never "absent" — nobody was expected in — and is never "late"
@@ -270,8 +272,8 @@ object AttendanceStats {
         isHoliday: Boolean = false,
         workingHours: WorkingHours = WorkingHours.DEFAULT,
     ): AttendanceStatus? = when {
-        isHoliday -> AttendanceStatus.HOLIDAY
         isOnLeave -> AttendanceStatus.LEAVE
+        isHoliday -> AttendanceStatus.HOLIDAY
         !workingHours.isWorkingDay(date) -> AttendanceStatus.WEEKEND
         checkInAt != null ->
             if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT

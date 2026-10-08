@@ -84,7 +84,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
     private var leaveDates: Set<LocalDate> = emptySet()
 
-    /** The user's holidays — without them every past holiday was counted as an absence here,
+    /** The organization's holidays — without them every past holiday was counted as an absence here,
      * disagreeing with Daily History, which has always shown those dates as "Holiday". */
     private var holidayDates: Set<LocalDate> = emptySet()
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
@@ -102,7 +102,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             observeConnectivity()
             observeRange(uid)
             observeLeaves(uid)
-            observeHolidays(uid)
+            observeHolidays()
             loadShiftStart(uid)
         }
     }
@@ -137,9 +137,9 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun observeHolidays(uid: String) {
+    private fun observeHolidays() {
         viewModelScope.launch {
-            holidayRepository.observeHolidays(uid)
+            holidayRepository.observeHolidays()
                 .catch { /* Holiday dates are an enhancement to the figures above; a failure here shouldn't block Reports. */ }
                 .collect { holidays ->
                     holidayDates = holidays.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()

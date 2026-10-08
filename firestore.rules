@@ -6,6 +6,32 @@ service cloud.firestore {
     // request.auth.token.email_verified: the app writes this document once immediately after
     // registration (name/email/shift), before there's been any chance to click the verification
     // link, so requiring a verified email here would silently break that very first write.
+    // The one account allowed to manage the organization's holidays. Checked here, on the
+    // verified ID-token claims, so the app's own "only show Add/Edit/Delete to this account" check
+    // is purely cosmetic — any other account writing /holidays directly is refused by Firestore.
+    // email_verified matters: it stops an unverified sign-up from claiming this address.
+    function isHolidayManager() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'hasim.radiant@gmail.com';
+    }
+
+    function isValidHoliday(data) {
+      return data.keys().hasOnly(['name', 'date', 'description'])
+        && data.keys().hasAll(['name', 'date'])
+        && data.name is string && data.name.size() <= 100
+        && data.date is string && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!('description' in data) || (data.description is string && data.description.size() <= 500));
+    }
+
+    // Organization-wide holidays: one document per holiday, shared by every employee. Any
+    // signed-in, verified account may read them; only the Holiday Manager may write.
+    match /holidays/{holidayId} {
+      allow read: if request.auth != null && request.auth.token.email_verified == true;
+      allow create, update: if isHolidayManager() && isValidHoliday(request.resource.data);
+      allow delete: if isHolidayManager();
+    }
+
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
 
@@ -20,9 +46,16 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true;
       }
 
-      // Each user's own personal holiday calendar.
+      // LEGACY per-user holiday calendar, from before holidays became organization-wide (see the
+      // top-level /holidays below). Nothing creates or edits these any more. The owner can still
+      // read them (the Holiday Manager's own are copied into /holidays once), stamp the single
+      // `migratedToGlobal` marker on one so that copy never repeats, and delete them when
+      // deleting their account.
       match /holidays/{holidayId} {
-        allow read, write: if request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true;
+        allow read, delete: if request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true;
+        allow update: if request.auth != null && request.auth.uid == uid && request.auth.token.email_verified == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['migratedToGlobal'])
+          && request.resource.data.migratedToGlobal == true;
       }
 
       // Each user's own personal leave records — self-tracked, no approval workflow.

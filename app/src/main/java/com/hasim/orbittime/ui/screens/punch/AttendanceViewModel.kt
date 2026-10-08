@@ -123,7 +123,7 @@ class AttendanceViewModel(
             observeRecord(uid)
             observeMonthRange(uid)
             observeLeaves(uid)
-            observeHolidays(uid)
+            observeHolidays()
             observeConnectivity()
             tickElapsedWhileRunning()
             observeAppTime()
@@ -157,9 +157,9 @@ class AttendanceViewModel(
         }
     }
 
-    private fun observeHolidays(uid: String) {
+    private fun observeHolidays() {
         viewModelScope.launch {
-            holidayRepository.observeHolidays(uid)
+            holidayRepository.observeHolidays()
                 .catch { /* Holidays only suppress a notification; a failure here shouldn't block attendance. */ }
                 .collect { holidays ->
                     holidayDates = holidays.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()

@@ -52,16 +52,20 @@ fun HolidayListScreen(
 
     AuthScreenScaffold(
         headline = "Holiday list",
-        subtitle = "Your personal holiday calendar.",
+        subtitle = "Your organization's holiday calendar.",
         onBackClick = onBackClick,
         footer = {
-            OrbitGradientButton(
-                text = "+  Add holiday",
-                onClick = {
-                    editingHoliday = null
-                    showEditor = true
-                },
-            )
+            // Only the Holiday Manager gets Add/Edit/Delete; everyone else sees the same list,
+            // read-only. Hiding these is UX — firestore.rules rejects anyone else's write.
+            if (uiState.canManageHolidays) {
+                OrbitGradientButton(
+                    text = "+  Add holiday",
+                    onClick = {
+                        editingHoliday = null
+                        showEditor = true
+                    },
+                )
+            }
         },
     ) {
         if (uiState.holidays.isEmpty() && !uiState.isLoading) {
@@ -77,9 +81,13 @@ fun HolidayListScreen(
                 uiState.holidays.forEach { holiday ->
                     HolidayRow(
                         holiday = holiday,
-                        onClick = {
-                            editingHoliday = holiday
-                            showEditor = true
+                        onClick = if (uiState.canManageHolidays) {
+                            {
+                                editingHoliday = holiday
+                                showEditor = true
+                            }
+                        } else {
+                            null
                         },
                     )
                 }
@@ -87,7 +95,7 @@ fun HolidayListScreen(
         }
     }
 
-    if (showEditor) {
+    if (showEditor && uiState.canManageHolidays) {
         HolidayEditorDialog(
             initial = editingHoliday,
             onSave = { holiday ->
@@ -106,14 +114,14 @@ fun HolidayListScreen(
 }
 
 @Composable
-private fun HolidayRow(holiday: HolidayRecord, onClick: () -> Unit) {
+private fun HolidayRow(holiday: HolidayRecord, onClick: (() -> Unit)?) {
     val dateLabel = runCatching { LocalDate.parse(holiday.date) }.getOrNull()?.let { AttendanceTimeFormat.dayLabel(it) } ?: holiday.date
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(OrbitColors.cream50, OrbitShapes.medium)
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(OrbitSpacing.md),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -125,7 +133,9 @@ private fun HolidayRow(holiday: HolidayRecord, onClick: () -> Unit) {
                 Text(text = holiday.description, style = OrbitTypography.bodySmall, color = OrbitColors.slate500)
             }
         }
-        Text(text = "›", style = OrbitTypography.titleMedium, color = OrbitColors.slate300)
+        if (onClick != null) {
+            Text(text = "›", style = OrbitTypography.titleMedium, color = OrbitColors.slate300)
+        }
     }
 }
 

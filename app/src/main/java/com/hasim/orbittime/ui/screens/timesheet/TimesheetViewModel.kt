@@ -132,7 +132,7 @@ class TimesheetViewModel(
                 // arrives instead of waiting on all three. Both are whole-collection listeners,
                 // so a leave or holiday saved for *any* date — past months included — lands here.
                 leaveRepository.observeLeaves(uid).retryForever().onStart { emit(emptyList()) },
-                holidayRepository.observeHolidays(uid).retryForever().onStart { emit(emptyList()) },
+                holidayRepository.observeHolidays().retryForever().onStart { emit(emptyList()) },
                 shiftStart,
             ) { records, leaves, holidays, lateAfter ->
                 val punches = records.mapNotNull { record ->
