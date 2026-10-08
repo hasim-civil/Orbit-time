@@ -619,9 +619,12 @@ private fun AttendanceSummaryCard(summary: AttendanceSummary, rangeMode: Attenda
             SummaryCell(
                 modifier = Modifier.weight(1f),
                 accent = OrbitColors.accent,
-                targetValue = summary.worked.toHours().toInt(),
-                format = { "${it}h" },
+                // Whole minutes, like the balance cell beside it: toHours() alone dropped the
+                // remainder, so 32h 30m worked read as "32h". Same "32h 30m" label as Reports.
+                targetValue = summary.worked.toMinutes().toInt(),
+                format = { AttendanceTimeFormat.elapsedLabel(Duration.ofMinutes(it.toLong())) },
                 label = "Worked",
+                valueStyle = OrbitTypography.titleMedium,
             )
             SummaryCell(modifier = Modifier.weight(1f), accent = OrbitColors.info, targetValue = summary.leaveDays, label = "Leave")
             // Minutes, not hours, are the unit the balance is counted in — "0h" for a 45-minute

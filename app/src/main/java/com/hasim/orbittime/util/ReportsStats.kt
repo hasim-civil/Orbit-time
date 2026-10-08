@@ -52,14 +52,17 @@ object ReportsStats {
         today: LocalDate,
         lateAfter: LocalTime,
         leaveDates: Set<LocalDate>,
+        holidayDates: Set<LocalDate> = emptySet(),
     ): ReportsPerformance {
         val current = AttendanceStats.summarize(
             records = records, rangeStart = currentStart, rangeEnd = currentEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
+            holidayDates = holidayDates,
         )
         val previous = AttendanceStats.summarize(
             records = records, rangeStart = previousStart, rangeEnd = previousEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
+            holidayDates = holidayDates,
         )
         val previousCounted = previous.presentDays + previous.absentDays
         val delta = if (previousCounted > 0) current.attendanceRatePercent - previous.attendanceRatePercent else null
@@ -124,6 +127,7 @@ object ReportsStats {
         today: LocalDate,
         lateAfter: LocalTime,
         leaveDates: Set<LocalDate>,
+        holidayDates: Set<LocalDate> = emptySet(),
         zone: ZoneId = ZoneId.systemDefault(),
     ): ReportsPunctuality {
         var present = 0
@@ -135,7 +139,7 @@ object ReportsStats {
         val effectiveEnd = if (rangeEnd.isAfter(today)) today else rangeEnd
         while (!date.isAfter(effectiveEnd)) {
             val checkInAt = records[date]?.checkInAt
-            when (AttendanceStats.classifyDay(checkInAt, date, today, zone, lateAfter, date in leaveDates)) {
+            when (AttendanceStats.classifyDay(checkInAt, date, today, zone, lateAfter, date in leaveDates, date in holidayDates)) {
                 AttendanceStatus.PRESENT -> present += 1
                 AttendanceStatus.LATE -> {
                     present += 1

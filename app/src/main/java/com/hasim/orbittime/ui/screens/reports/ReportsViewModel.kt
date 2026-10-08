@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hasim.orbittime.data.attendance.AttendanceRepository
 import com.hasim.orbittime.data.auth.AuthRepository
+import com.hasim.orbittime.data.holiday.HolidayRepository
 import com.hasim.orbittime.data.leave.LeaveRepository
 import com.hasim.orbittime.data.user.UserProfileRepository
 import com.hasim.orbittime.util.AttendanceRangeMode
@@ -71,6 +72,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
     private val attendanceRepository = AttendanceRepository()
     private val profileRepository = UserProfileRepository()
     private val leaveRepository = LeaveRepository()
+    private val holidayRepository = HolidayRepository()
 
     private val today = AttendanceTimeFormat.today()
 
@@ -81,6 +83,10 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
 
     private var rangeRecords: Map<LocalDate, DailyAttendance> = emptyMap()
     private var leaveDates: Set<LocalDate> = emptySet()
+
+    /** The user's holidays — without them every past holiday was counted as an absence here,
+     * disagreeing with Daily History, which has always shown those dates as "Holiday". */
+    private var holidayDates: Set<LocalDate> = emptySet()
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
 
     private var rangeJob: Job? = null
@@ -96,6 +102,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             observeConnectivity()
             observeRange(uid)
             observeLeaves(uid)
+            observeHolidays(uid)
             loadShiftStart(uid)
         }
     }
@@ -125,6 +132,17 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
                 .catch { /* Leave dates are an enhancement to the figures above; a failure here shouldn't block Reports. */ }
                 .collect { leaves ->
                     leaveDates = leaves.flatMap { it.dateRange() }.toSet()
+                    recompute()
+                }
+        }
+    }
+
+    private fun observeHolidays(uid: String) {
+        viewModelScope.launch {
+            holidayRepository.observeHolidays(uid)
+                .catch { /* Holiday dates are an enhancement to the figures above; a failure here shouldn't block Reports. */ }
+                .collect { holidays ->
+                    holidayDates = holidays.mapNotNull { runCatching { LocalDate.parse(it.date) }.getOrNull() }.toSet()
                     recompute()
                 }
         }
@@ -178,10 +196,10 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             records = rangeRecords,
             currentStart = monthStart, currentEnd = monthEnd,
             previousStart = previousMonthStart, previousEnd = previousMonthEnd,
-            today = today, lateAfter = lateAfter, leaveDates = leaveDates,
+            today = today, lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
         )
         val workHours = ReportsStats.workHours(rangeRecords, monthStart, monthEnd, today, OrbitClock.now())
-        val punctuality = ReportsStats.punctuality(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates)
+        val punctuality = ReportsStats.punctuality(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates)
         val hasEnoughData = rangeRecords.values.any { it.checkInAt != null }
 
         _uiState.update {
@@ -205,14 +223,20 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             val anchor = today.minusWeeks(weeksAgo)
             val start = anchor.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             val end = anchor.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
-            val summary = AttendanceStats.summarize(rangeRecords, start, end, today, "", lateAfter = lateAfter, leaveDates = leaveDates)
+            val summary = AttendanceStats.summarize(
+                rangeRecords, start, end, today, "",
+                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+            )
             ReportsTrendPoint(label = "${start.dayOfMonth}/${start.monthValue}", attendanceRatePercent = summary.attendanceRatePercent)
         }
         AttendanceRangeMode.MONTH -> (TREND_BUCKET_COUNT - 1 downTo 0).map { monthsAgo ->
             val monthDate = today.minusMonths(monthsAgo)
             val start = monthDate.withDayOfMonth(1)
             val end = monthDate.withDayOfMonth(monthDate.lengthOfMonth())
-            val summary = AttendanceStats.summarize(rangeRecords, start, end, today, "", lateAfter = lateAfter, leaveDates = leaveDates)
+            val summary = AttendanceStats.summarize(
+                rangeRecords, start, end, today, "",
+                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+            )
             val label = monthDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             ReportsTrendPoint(label = label, attendanceRatePercent = summary.attendanceRatePercent)
         }
