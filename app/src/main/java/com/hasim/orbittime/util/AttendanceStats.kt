@@ -190,6 +190,9 @@ object AttendanceStats {
         leaveDates: Set<LocalDate> = emptySet(),
         holidayDates: Set<LocalDate> = emptySet(),
         workingHours: WorkingHours = WorkingHours.DEFAULT,
+        /** The user's shift end, so today counts as absent once its shift is over (see
+         * [isWorkdayOver]). Null keeps today pending until tomorrow. */
+        shiftEnd: LocalTime? = null,
     ): AttendanceSummary {
         var present = 0
         var absent = 0
@@ -210,7 +213,8 @@ object AttendanceStats {
             // the Timesheet calendar and the missed-day notification use — so a date can never be
             // "Holiday" on the list and "Absent" in this rollup. A late day is still attendance:
             // it counts towards present (and the rate) as well as towards late.
-            when (classifyDay(checkInAt, date, today, zone, lateAfter, isOnLeave, isHoliday, workingHours)) {
+            val workdayOver = isWorkdayOver(date, today, now, zone, lateAfter, shiftEnd)
+            when (classifyDay(checkInAt, date, today, zone, lateAfter, isOnLeave, isHoliday, workingHours, workdayOver)) {
                 AttendanceStatus.PRESENT -> present += 1
                 AttendanceStatus.LATE -> {
                     present += 1
@@ -268,7 +272,12 @@ object AttendanceStats {
      *  - a non-scheduled day is never "absent" — nobody was expected in — and is never "late"
      *    either, since the shift start it would be measured against doesn't apply that day;
      *  - a check-in then decides on-time vs late;
-     *  - only then does a past scheduled day with nothing at all on it count as absent.
+     *  - only then does a scheduled day with nothing at all on it count as absent — and only once
+     *    its workday is over ([isWorkdayOver]; by default, once the date is in the past). Today,
+     *    before the shift has ended, is never absent: it's still pending.
+     *
+     * This is the one daily-status resolver. Home, Timesheet/Daily History, Reports and the
+     * attendance notifications all take a day's status from here.
      */
     fun classifyDay(
         checkInAt: Instant?,
@@ -279,13 +288,37 @@ object AttendanceStats {
         isOnLeave: Boolean = false,
         isHoliday: Boolean = false,
         workingHours: WorkingHours = WorkingHours.DEFAULT,
+        isWorkdayOver: Boolean = date.isBefore(today),
     ): AttendanceStatus? = when {
         isOnLeave -> AttendanceStatus.LEAVE
         isHoliday -> AttendanceStatus.HOLIDAY
         !workingHours.isWorkingDay(date) -> AttendanceStatus.WEEKEND
         checkInAt != null ->
             if (checkInAt.atZone(zone).toLocalTime().isAfter(lateAfter)) AttendanceStatus.LATE else AttendanceStatus.PRESENT
-        date.isBefore(today) -> AttendanceStatus.ABSENT
+        isWorkdayOver && !date.isAfter(today) -> AttendanceStatus.ABSENT
         else -> null
+    }
+
+    /**
+     * Whether [date]'s workday has finished by [now], so a day with no check-in can be judged.
+     *
+     * A past date is over — except the one whose overnight shift (end before start, e.g.
+     * 22:00→06:00) is still running into today. Today is over once the clock passes its shift
+     * end; a today whose shift runs overnight isn't over until tomorrow. A future date never is.
+     * With no [shiftEnd] known, only past dates are over — the app's long-standing rule.
+     */
+    fun isWorkdayOver(
+        date: LocalDate,
+        today: LocalDate,
+        now: Instant,
+        zone: ZoneId = ZoneId.systemDefault(),
+        shiftStart: LocalTime = DEFAULT_LATE_AFTER,
+        shiftEnd: LocalTime? = null,
+    ): Boolean {
+        if (date.isAfter(today)) return false
+        if (shiftEnd == null) return date.isBefore(today)
+        val overnight = !shiftEnd.isAfter(shiftStart)
+        val shiftEndsAt = date.plusDays(if (overnight) 1 else 0).atTime(shiftEnd).atZone(zone).toInstant()
+        return !now.isBefore(shiftEndsAt)
     }
 }

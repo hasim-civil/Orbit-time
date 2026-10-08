@@ -90,6 +90,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
      * disagreeing with Daily History, which has always shown those dates as "Holiday". */
     private var holidayDates: Set<LocalDate> = emptySet()
     private var lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER
+    private var shiftEnd: LocalTime = AttendanceStats.DEFAULT_SHIFT_END
 
     private var rangeJob: Job? = null
 
@@ -154,10 +155,10 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
         viewModelScope.launch {
             val profile = runCatching { profileRepository.getProfile(uid) }.getOrNull()
             val parsed = profile?.shiftStart?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-            if (parsed != null) {
-                lateAfter = parsed
-                recompute()
-            }
+            val parsedEnd = profile?.shiftEnd?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+            if (parsed != null) lateAfter = parsed
+            if (parsedEnd != null) shiftEnd = parsedEnd
+            if (parsed != null || parsedEnd != null) recompute()
         }
     }
 
@@ -199,10 +200,13 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             currentStart = monthStart, currentEnd = monthEnd,
             previousStart = previousMonthStart, previousEnd = previousMonthEnd,
             today = today, lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+            shiftEnd = shiftEnd,
         )
         val workHours = ReportsStats.workHours(rangeRecords, monthStart, monthEnd, today, OrbitClock.now())
         val overtime = ReportsStats.overtime(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates)
-        val punctuality = ReportsStats.punctuality(rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates)
+        val punctuality = ReportsStats.punctuality(
+            rangeRecords, monthStart, monthEnd, today, lateAfter, leaveDates, holidayDates, shiftEnd = shiftEnd,
+        )
         val hasEnoughData = rangeRecords.values.any { it.checkInAt != null }
 
         _uiState.update {
@@ -229,7 +233,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             val end = anchor.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))
             val summary = AttendanceStats.summarize(
                 rangeRecords, start, end, today, "",
-                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates, shiftEnd = shiftEnd,
             )
             ReportsTrendPoint(label = "${start.dayOfMonth}/${start.monthValue}", attendanceRatePercent = summary.attendanceRatePercent)
         }
@@ -239,7 +243,7 @@ class ReportsViewModel(application: Application) : AndroidViewModel(application)
             val end = monthDate.withDayOfMonth(monthDate.lengthOfMonth())
             val summary = AttendanceStats.summarize(
                 rangeRecords, start, end, today, "",
-                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates,
+                lateAfter = lateAfter, leaveDates = leaveDates, holidayDates = holidayDates, shiftEnd = shiftEnd,
             )
             val label = monthDate.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())
             ReportsTrendPoint(label = label, attendanceRatePercent = summary.attendanceRatePercent)

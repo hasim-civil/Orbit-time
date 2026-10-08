@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.Source
 import com.google.firebase.firestore.ktx.toObject
 import com.hasim.orbittime.util.OrbitClock
 import java.util.Date
@@ -37,32 +38,49 @@ class NotificationRepository(
                 }
                 val items = snapshot?.documents.orEmpty().mapNotNull { doc ->
                     doc.toObject<UserNotification>()?.copy(id = doc.id)
-                }
+                }.filterNot { it.dismissed }
                 trySend(items)
             }
         awaitClose { registration.remove() }
     }
 
-    suspend fun addLateArrival(uid: String, title: String, body: String): Result<Unit> = runCatching {
-        collection(uid).add(
-            UserNotification(kind = NotificationKind.LATE_ARRIVAL, title = title, body = body, createdAt = appNow()),
-        ).await()
-        Unit
-    }
+    /** Every notification, dismissed ones included, straight from the server (fails offline) —
+     * what the attendance rules compare against before changing anything. */
+    suspend fun fetchAllFromServer(uid: String): List<UserNotification> =
+        collection(uid).get(Source.SERVER).await().documents.mapNotNull { doc ->
+            doc.toObject<UserNotification>()?.copy(id = doc.id)
+        }
 
     /**
-     * Creates a notification under a caller-chosen, deterministic [id] — a no-op if one with that
-     * id already exists. Used for facts that get re-evaluated repeatedly (a specific missed date,
-     * a given calendar month's late-arrival allowance) so the same fact is never reported twice,
-     * and re-checking never resets an already-read notification back to unread.
+     * Applies one round of rule decisions atomically. Each create uses its deterministic id inside
+     * a transaction that first checks the document is still absent, so two devices (or two quick
+     * re-runs) can't both create it, and an existing — even dismissed — one is never overwritten.
      */
-    suspend fun createIfMissing(uid: String, id: String, notification: UserNotification): Result<Unit> = runCatching {
-        val doc = collection(uid).document(id)
-        val exists = doc.get().await().exists()
-        if (!exists) {
-            doc.set(notification.copy(id = id, createdAt = appNow())).await()
+    suspend fun applyChanges(
+        uid: String,
+        creates: List<UserNotification>,
+        retractions: Map<String, String>,
+        restores: Set<String>,
+    ) {
+        creates.forEach { notification ->
+            val doc = collection(uid).document(notification.id)
+            firestore.runTransaction { tx ->
+                if (!tx.get(doc).exists()) {
+                    tx.set(doc, notification.copy(createdAt = appNow(), rulesVersion = CURRENT_NOTIFICATION_RULES_VERSION))
+                }
+                Unit
+            }.await()
         }
-        Unit
+        if (retractions.isEmpty() && restores.isEmpty()) return
+        val batch = firestore.batch()
+        retractions.forEach { (id, reason) ->
+            // Read, too: a withdrawn alert shouldn't keep lighting the unread dot.
+            batch.update(collection(uid).document(id), mapOf("retracted" to true, "retractedReason" to reason, "read" to true))
+        }
+        restores.forEach { id ->
+            batch.update(collection(uid).document(id), mapOf("retracted" to false, "retractedReason" to ""))
+        }
+        batch.commit().await()
     }
 
     suspend fun markRead(uid: String, id: String): Result<Unit> = runCatching {
@@ -70,15 +88,13 @@ class NotificationRepository(
         Unit
     }
 
+    /** Hides every notification instead of deleting it: a deleted one would simply be created
+     * again the next time the attendance rules run, since its fact is still true. */
     suspend fun clearAll(uid: String): Result<Unit> = runCatching {
-        deleteAllDocuments(collection(uid))
-    }
-
-    internal suspend fun deleteAllDocuments(collection: CollectionReference) {
-        val snapshot = collection.get().await()
+        val snapshot = collection(uid).get().await()
         snapshot.documents.chunked(400).forEach { chunk ->
             val batch = firestore.batch()
-            chunk.forEach { doc -> batch.delete(doc.reference) }
+            chunk.forEach { doc -> batch.update(doc.reference, mapOf("dismissed" to true, "read" to true)) }
             batch.commit().await()
         }
     }

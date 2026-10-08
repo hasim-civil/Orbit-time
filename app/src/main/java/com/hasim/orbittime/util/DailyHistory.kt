@@ -143,6 +143,9 @@ object DailyHistory {
         holidayNames: Map<LocalDate, String>,
         zone: ZoneId = ZoneId.systemDefault(),
         lateAfter: LocalTime = AttendanceStats.DEFAULT_LATE_AFTER,
+        now: Instant = OrbitClock.now(),
+        /** See [AttendanceStats.isWorkdayOver]: with it, today reads Absent once its shift is over. */
+        shiftEnd: LocalTime? = null,
     ): MonthView {
         val days = (1..monthStart.lengthOfMonth()).map { dayOfMonth ->
             val date = monthStart.withDayOfMonth(dayOfMonth)
@@ -162,6 +165,7 @@ object DailyHistory {
                     lateAfter = lateAfter,
                     isOnLeave = date in leaveLabels,
                     isHoliday = date in holidayNames,
+                    isWorkdayOver = AttendanceStats.isWorkdayOver(date, today, now, zone, lateAfter, shiftEnd),
                 ),
             )
         }

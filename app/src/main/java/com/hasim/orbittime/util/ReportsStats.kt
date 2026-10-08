@@ -61,16 +61,18 @@ object ReportsStats {
         lateAfter: LocalTime,
         leaveDates: Set<LocalDate>,
         holidayDates: Set<LocalDate> = emptySet(),
+        shiftEnd: LocalTime? = null,
+        now: Instant = OrbitClock.now(),
     ): ReportsPerformance {
         val current = AttendanceStats.summarize(
             records = records, rangeStart = currentStart, rangeEnd = currentEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
-            holidayDates = holidayDates,
+            holidayDates = holidayDates, shiftEnd = shiftEnd, now = now,
         )
         val previous = AttendanceStats.summarize(
             records = records, rangeStart = previousStart, rangeEnd = previousEnd,
             today = today, rangeLabel = "", lateAfter = lateAfter, leaveDates = leaveDates,
-            holidayDates = holidayDates,
+            holidayDates = holidayDates, shiftEnd = shiftEnd, now = now,
         )
         val previousCounted = previous.presentDays + previous.absentDays
         val delta = if (previousCounted > 0) current.attendanceRatePercent - previous.attendanceRatePercent else null
@@ -167,6 +169,8 @@ object ReportsStats {
         leaveDates: Set<LocalDate>,
         holidayDates: Set<LocalDate> = emptySet(),
         zone: ZoneId = ZoneId.systemDefault(),
+        shiftEnd: LocalTime? = null,
+        now: Instant = OrbitClock.now(),
     ): ReportsPunctuality {
         var present = 0
         var absent = 0
@@ -177,7 +181,13 @@ object ReportsStats {
         val effectiveEnd = if (rangeEnd.isAfter(today)) today else rangeEnd
         while (!date.isAfter(effectiveEnd)) {
             val checkInAt = records[date]?.checkInAt
-            when (AttendanceStats.classifyDay(checkInAt, date, today, zone, lateAfter, date in leaveDates, date in holidayDates)) {
+            val workdayOver = AttendanceStats.isWorkdayOver(date, today, now, zone, lateAfter, shiftEnd)
+            when (
+                AttendanceStats.classifyDay(
+                    checkInAt, date, today, zone, lateAfter, date in leaveDates, date in holidayDates,
+                    isWorkdayOver = workdayOver,
+                )
+            ) {
                 AttendanceStatus.PRESENT -> present += 1
                 AttendanceStatus.LATE -> {
                     present += 1
