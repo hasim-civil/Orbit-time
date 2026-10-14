@@ -2,11 +2,14 @@ package com.hasim.orbittime.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import java.io.File
 
 /**
@@ -90,4 +93,30 @@ object ApkInstaller {
     fun installedVersionName(context: Context): String? = runCatching {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()
+
+    /** The installed app's own package and version, as Android records them. */
+    fun installedPackageVersion(context: Context): PackageVersion? = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).toPackageVersion()
+    }.getOrNull()
+
+    /**
+     * What the APK file at [apk] says about itself, read from its manifest without installing
+     * it — or null when Android can't parse it as an APK.
+     */
+    fun archivePackageVersion(context: Context, apk: File): PackageVersion? = runCatching {
+        val packageManager = context.packageManager
+        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getPackageArchiveInfo(apk.path, PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getPackageArchiveInfo(apk.path, 0)
+        }
+        info?.toPackageVersion()
+    }.getOrNull()
+
+    private fun PackageInfo.toPackageVersion() = PackageVersion(
+        packageName = packageName,
+        versionCode = PackageInfoCompat.getLongVersionCode(this),
+        versionName = versionName,
+    )
 }

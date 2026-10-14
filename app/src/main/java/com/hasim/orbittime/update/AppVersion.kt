@@ -7,10 +7,10 @@ package com.hasim.orbittime.update
  * `"1.10" < "1.9"` alphabetically, so the tenth release would never be offered to anyone on
  * the ninth. Each dot-separated component is therefore parsed and compared as an integer.
  *
- * Accepts every shape this project's tags and version names take — `v.1.1` (the tag format the
- * release workflow publishes), `v1.1`, and the bare `1.1` that `versionName` holds — so the
- * installed version and the release tag can be compared directly without either side being
- * normalised by its caller first.
+ * Accepts every shape this project's tags and version names take — `v1.3` (the tag format the
+ * release workflow publishes), `v.1.1` (how releases up to 1.2 were tagged), and the bare `1.1`
+ * that `versionName` holds — so the installed version and the release tag can be compared
+ * directly without either side being normalised by its caller first.
  */
 class AppVersion private constructor(val parts: List<Int>) : Comparable<AppVersion> {
 

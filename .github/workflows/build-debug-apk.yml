@@ -1,10 +1,20 @@
-name: Build debug APK
+name: Build APK
 
+# This file keeps its original name on purpose: the workflow's id, its "Run workflow" button and
+# the run counter behind the beta-<n> tags all belong to this path. A renamed file starts a new
+# workflow whose run numbers restart at 1 and collide with beta-<n> tags that already exist.
+#
+# Every run builds the release APK from the commit being run — signed with the shared key, see
+# app/build.gradle.kts — and checks the APK's own manifest and signature before publishing:
+#   - a push to a claude/** branch, or "Run workflow" with no tag: a beta prerelease. The in-app
+#     updater never offers these (GitHub's releases/latest skips prereleases).
+#   - a v* tag push, or "Run workflow" with release_tag: the versioned release the in-app updater
+#     offers. Its tag must match versionName in app/build.gradle.kts.
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Publish a versioned release at this tag (e.g. v.1.1). Leave blank to build a beta only."
+        description: "Publish a versioned release at this tag (e.g. v1.3). It must match versionName in app/build.gradle.kts. Leave blank to build a beta only."
         required: false
         default: ""
   push:
@@ -15,6 +25,17 @@ on:
 
 permissions:
   contents: write
+
+# Two runs publishing the same release at once would race on its assets.
+concurrency:
+  group: build-apk-${{ inputs.release_tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  APP_ID: com.hasim.orbittime
+  # SHA-256 of the certificate in debug.keystore, which signed every APK published so far.
+  # Android won't install an update signed with anything else over those copies.
+  EXPECTED_CERT_SHA256: 247d41438d04ead701057c501b8a2a9ab08225a0c5a540547cc1964e3388fe58
 
 jobs:
   build:
@@ -40,6 +61,8 @@ jobs:
         with:
           packages: ''
 
+      # Dependency and wrapper downloads only. Build outputs (app/build) are never cached or
+      # restored, so every APK is compiled from this checkout.
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
@@ -63,6 +86,62 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICES_JSON" > app/google-services.json
 
+      # Decided before building, so a tag that doesn't match the source fails in seconds.
+      - name: Work out what to publish
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.release_tag }}
+        run: |
+          version_name=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
+          version_code=$(sed -n 's/^ *versionCode = \([0-9][0-9]*\)$/\1/p' app/build.gradle.kts)
+          if [ -z "$version_name" ] || [ -z "$version_code" ]; then
+            echo "::error::Could not read versionName/versionCode from app/build.gradle.kts"
+            exit 1
+          fi
+          echo "Source at $GITHUB_SHA is Orbit Time $version_name (versionCode $version_code)"
+          {
+            echo "version_name=$version_name"
+            echo "version_code=$version_code"
+          } >> "$GITHUB_OUTPUT"
+
+          tag="$INPUT_TAG"
+          if [ -z "$tag" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tag="$GITHUB_REF_NAME"
+          fi
+          if [ -z "$tag" ]; then
+            echo "publish=beta" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The in-app updater compares the release tag with the installed versionName. v.1.3 was
+          # tagged on a commit that still said 1.2, so its APK installed as 1.2 and phones were
+          # offered "1.3" again on every launch.
+          tag_version="${tag#v}"; tag_version="${tag_version#.}"
+          if [ "$tag_version" != "$version_name" ]; then
+            echo "::error::Tag $tag does not match versionName $version_name in app/build.gradle.kts at $GITHUB_SHA. Bump versionName and versionCode first, then tag that commit."
+            exit 1
+          fi
+
+          # A tag that already exists must be the commit being built, or the release would pair
+          # one commit's tag with another commit's APK.
+          tagged_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)
+          if [ -n "$tagged_sha" ] && [ "$tagged_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Tag $tag already points at $tagged_sha, not at the commit being built ($GITHUB_SHA)."
+            exit 1
+          fi
+
+          notes=".github/release-notes/${tag}.md"
+          if [ ! -f "$notes" ]; then
+            notes="$RUNNER_TEMP/notes.md"
+            printf 'Orbit Time %s, built from %s.\n' "$tag" "$GITHUB_SHA" > "$notes"
+          fi
+          {
+            echo "publish=version"
+            echo "tag=$tag"
+            echo "notes=$notes"
+          } >> "$GITHUB_OUTPUT"
+
       # Unit tests run before the build so a logic regression fails fast, before an APK is
       # produced or published. These are JVM tests — no emulator needed.
       - name: Run unit tests
@@ -76,8 +155,9 @@ jobs:
           path: app/build/reports/tests/
           if-no-files-found: ignore
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      # The installable APK: the release build type, signed with the shared key.
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Android Lint
         run: ./gradlew lintDebug --stacktrace
@@ -90,43 +170,90 @@ jobs:
           path: app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
 
-      # A versioned release is asked for either by running this workflow with release_tag set,
-      # or by pushing a v* tag. Anything else stays exactly as before: a beta prerelease.
-      - name: Work out what to publish
-        id: release
+      # Checks the APK itself rather than the build script: exactly one APK, this app's id, the
+      # versionName/versionCode from app/build.gradle.kts, and the shared signing key.
+      - name: Verify APK
+        id: apk
+        env:
+          VERSION_NAME: ${{ steps.release.outputs.version_name }}
+          VERSION_CODE: ${{ steps.release.outputs.version_code }}
         run: |
-          tag="${{ inputs.release_tag }}"
-          if [ -z "$tag" ] && [ "${{ github.ref_type }}" = "tag" ]; then
-            tag="${{ github.ref_name }}"
+          shopt -s nullglob
+          apks=(app/build/outputs/apk/release/*.apk)
+          if [ "${#apks[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one release APK, found ${#apks[@]}: ${apks[*]}"
+            exit 1
           fi
-          if [ -z "$tag" ]; then
-            echo "publish=beta" >> "$GITHUB_OUTPUT"
-            exit 0
+          apk="${apks[0]}"
+          if [[ "$apk" == *unsigned* ]]; then
+            echo "::error::$apk is unsigned and can't be installed"
+            exit 1
           fi
-          notes=".github/release-notes/${tag}.md"
-          if [ ! -f "$notes" ]; then
-            notes="$RUNNER_TEMP/notes.md"
-            printf 'Orbit Time %s, built from %s.\n' "$tag" "${{ github.sha }}" > "$notes"
-          fi
-          {
-            echo "publish=version"
-            echo "tag=$tag"
-            echo "notes=$notes"
-          } >> "$GITHUB_OUTPUT"
 
-      - name: Rename APK for distribution
+          build_tools=$(printf '%s\n' "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)
+          badging=$("$build_tools/aapt2" dump badging "$apk" | head -n 1)
+          echo "$badging"
+          for expected in "name='$APP_ID'" "versionCode='$VERSION_CODE'" "versionName='$VERSION_NAME'"; do
+            if ! grep -qF " $expected" <<< "$badging"; then
+              echo "::error::APK manifest lacks $expected"
+              exit 1
+            fi
+          done
+
+          certs=$("$build_tools/apksigner" verify --print-certs "$apk")
+          echo "$certs"
+          digests=$(grep -E '^Signer #[0-9]+ certificate SHA-256 digest: ' <<< "$certs" | sed 's/.*: //')
+          if [ "$digests" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK is signed with [$digests], not the shared Orbit Time key $EXPECTED_CERT_SHA256"
+            exit 1
+          fi
+          echo "path=$apk" >> "$GITHUB_OUTPUT"
+
+      # OrbitTime-<tag>.apk is the asset name the in-app updater looks for first
+      # (UpdateConfig.selectApkAsset).
+      - name: Name APK for distribution
+        id: dist
+        env:
+          APK: ${{ steps.apk.outputs.path }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
-          mkdir -p app/build/outputs/apk/debug-renamed
-          label="${{ steps.release.outputs.tag }}"
-          [ -z "$label" ] && label="Beta-${{ github.run_number }}"
-          cp app/build/outputs/apk/debug/*.apk "app/build/outputs/apk/debug-renamed/OrbitTime-${label}.apk"
+          label="${TAG:-Beta-$GITHUB_RUN_NUMBER}"
+          mkdir -p app/build/outputs/apk/distribution
+          out="app/build/outputs/apk/distribution/OrbitTime-$label.apk"
+          cp "$APK" "$out"
+          sha256=$(sha256sum "$out" | cut -d' ' -f1)
+          echo "$out sha256 $sha256"
+          {
+            echo "file=$out"
+            echo "name=$(basename "$out")"
+            echo "sha256=$sha256"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: orbit-time-beta-apk
-          path: app/build/outputs/apk/debug-renamed/*.apk
+          name: ${{ steps.dist.outputs.name }}
+          path: ${{ steps.dist.outputs.file }}
           if-no-files-found: error
+
+      # Re-publishing a tag (a re-run, or a release first created by hand) must not leave an older
+      # APK beside the new one: the updater would download whichever it matched.
+      - name: Remove old APKs from an existing release
+        if: steps.release.outputs.publish == 'version'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "No release at $TAG yet."
+            exit 0
+          fi
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | select((.name | ascii_downcase | endswith(".apk")) or .contentType == "application/vnd.android.package-archive") | .name' |
+          while IFS= read -r asset; do
+            echo "Deleting $asset from release $TAG"
+            gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --yes
+          done
 
       - name: Publish versioned release with APK
         if: steps.release.outputs.publish == 'version'
@@ -140,7 +267,69 @@ jobs:
           # at 6ec4f1e instead of the branch commit its APK came from.
           target_commitish: ${{ github.sha }}
           prerelease: false
-          files: app/build/outputs/apk/debug-renamed/*.apk
+          draft: false
+          make_latest: "true"
+          fail_on_unmatched_files: true
+          files: ${{ steps.dist.outputs.file }}
+
+      # Reads the release back as phones will: its only APK must be byte-for-byte the one
+      # verified above.
+      - name: Verify published release
+        if: steps.release.outputs.publish == 'version'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          NAME: ${{ steps.dist.outputs.name }}
+          SHA256: ${{ steps.dist.outputs.sha256 }}
+        run: |
+          apks=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '[.assets[] | select(.name | ascii_downcase | endswith(".apk")) | .name] | join(",")')
+          if [ "$apks" != "$NAME" ]; then
+            echo "::error::Release $TAG carries APKs [$apks]; expected only $NAME"
+            exit 1
+          fi
+          dir=$(mktemp -d)
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$NAME" --dir "$dir"
+          served=$(sha256sum "$dir/$NAME" | cut -d' ' -f1)
+          if [ "$served" != "$SHA256" ]; then
+            echo "::error::Release $TAG serves $NAME with sha256 $served, not the verified build $SHA256"
+            exit 1
+          fi
+          echo "Release $TAG serves $NAME, sha256 $served"
+
+      # One version, one release. A release of the same version under another tag spelling —
+      # the first v.1.3, whose APK was a 1.2 build — keeps serving its APK to anyone who opens
+      # it, and its tag still carries the old workflow, so re-running that run would publish the
+      # wrong APK again. Both go once the verified release is live; the commit stays in history.
+      - name: Retire other releases of this version
+        if: steps.release.outputs.publish == 'version'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          version="${TAG#v}"; version="${version#.}"
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName' |
+          while IFS= read -r other; do
+            [ "$other" = "$TAG" ] && continue
+            other_version="${other#v}"; other_version="${other_version#.}"
+            [ "$other_version" = "$version" ] || continue
+            echo "Deleting release $other and its tag: same version as $TAG"
+            gh release delete "$other" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          done
+
+      # releases/latest is the endpoint the app queries on launch.
+      - name: Check the in-app updater sees this release
+        if: steps.release.outputs.publish == 'version'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)
+          echo "releases/latest -> $latest"
+          if [ "$latest" != "$TAG" ]; then
+            echo "::error::releases/latest is $latest, not $TAG"
+            exit 1
+          fi
 
       - name: Publish beta release with APK
         if: steps.release.outputs.publish == 'beta'
@@ -149,7 +338,8 @@ jobs:
           tag_name: beta-${{ github.run_number }}
           name: Orbit Time Beta ${{ github.run_number }}
           body: |
-            Automated beta APK build from `${{ github.ref_name }}` @ ${{ github.sha }}.
-            Not signed for release — install for testing only (enable "install from unknown sources").
+            Automated beta APK build (Orbit Time ${{ steps.release.outputs.version_name }}, versionCode ${{ steps.release.outputs.version_code }}) from `${{ github.ref_name }}` @ ${{ github.sha }}.
+            For testing only — the in-app updater never offers beta builds.
+          target_commitish: ${{ github.sha }}
           prerelease: true
-          files: app/build/outputs/apk/debug-renamed/*.apk
+          files: ${{ steps.dist.outputs.file }}
