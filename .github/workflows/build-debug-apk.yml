@@ -90,7 +90,6 @@ jobs:
       - name: Work out what to publish
         id: release
         env:
-          GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.release_tag }}
         run: |
           version_name=$(sed -n 's/^ *versionName = "\(.*\)"$/\1/p' app/build.gradle.kts)
@@ -124,8 +123,13 @@ jobs:
           fi
 
           # A tag that already exists must be the commit being built, or the release would pair
-          # one commit's tag with another commit's APK.
-          tagged_sha=$(gh api "repos/$GITHUB_REPOSITORY/commits/$tag" --jq .sha 2>/dev/null || true)
+          # one commit's tag with another commit's APK. An annotated tag is read through its
+          # peeled ^{} entry; no entry at all means the tag doesn't exist yet.
+          refs=$(git ls-remote --tags origin)
+          tagged_sha=$(awk -v ref="refs/tags/$tag^{}" '$2 == ref { print $1 }' <<< "$refs")
+          if [ -z "$tagged_sha" ]; then
+            tagged_sha=$(awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }' <<< "$refs")
+          fi
           if [ -n "$tagged_sha" ] && [ "$tagged_sha" != "$GITHUB_SHA" ]; then
             echo "::error::Tag $tag already points at $tagged_sha, not at the commit being built ($GITHUB_SHA)."
             exit 1
@@ -250,12 +254,13 @@ jobs:
             echo "No release at $TAG yet."
             exit 0
           fi
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
-            --jq '.assets[] | select((.name | ascii_downcase | endswith(".apk")) or .contentType == "application/vnd.android.package-archive") | .name' |
+          stale=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets \
+            --jq '.assets[] | select((.name | ascii_downcase | endswith(".apk")) or .contentType == "application/vnd.android.package-archive") | .name')
           while IFS= read -r asset; do
+            [ -n "$asset" ] || continue
             echo "Deleting $asset from release $TAG"
             gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" --yes
-          done
+          done <<< "$stale"
 
       - name: Publish versioned release with APK
         if: steps.release.outputs.publish == 'version'
@@ -310,14 +315,16 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           version="${TAG#v}"; version="${version#.}"
-          gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName' |
+          tags=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName')
           while IFS= read -r other; do
-            [ "$other" = "$TAG" ] && continue
+            if [ -z "$other" ] || [ "$other" = "$TAG" ]; then
+              continue
+            fi
             other_version="${other#v}"; other_version="${other_version#.}"
             [ "$other_version" = "$version" ] || continue
             echo "Deleting release $other and its tag: same version as $TAG"
             gh release delete "$other" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
-          done
+          done <<< "$tags"
 
       # releases/latest is the endpoint the app queries on launch.
       - name: Check the in-app updater sees this release
