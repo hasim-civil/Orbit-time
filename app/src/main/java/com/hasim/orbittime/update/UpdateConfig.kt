@@ -7,9 +7,10 @@ package com.hasim.orbittime.update
  * releases, and how this project names its APK assets — lives here, so changing the
  * repository or the asset naming never means touching the checker, the downloader or the UI.
  *
- * The naming convention is the one the release workflow already uses
- * (`.github/workflows/build-debug-apk.yml`): a release tagged `v.1.1` publishes
- * `OrbitTime-v.1.1.apk`. Nothing here is a secret — the repository is public and the
+ * The naming convention is the one the release workflow uses
+ * (`.github/workflows/build-debug-apk.yml`): a release tagged `v1.3` publishes
+ * `OrbitTime-v1.3.apk` (releases up to 1.2 were tagged `v.1.1`, `v.1.2`; [AppVersion] reads
+ * both styles). Nothing here is a secret — the repository is public and the
  * endpoints below are read without any token or sign-in, which is deliberate: an APK is
  * decompilable, so a credential shipped inside one is a published credential.
  */
@@ -18,7 +19,7 @@ object UpdateConfig {
     const val OWNER: String = "hasim-civil"
     const val REPO: String = "Orbit-time"
 
-    /** Prefix every published APK asset carries, e.g. `OrbitTime-v.1.1.apk`. */
+    /** Prefix every published APK asset carries, e.g. `OrbitTime-v1.3.apk`. */
     const val APK_ASSET_PREFIX: String = "OrbitTime-"
     const val APK_EXTENSION: String = ".apk"
     const val APK_CONTENT_TYPE: String = "application/vnd.android.package-archive"
@@ -26,7 +27,7 @@ object UpdateConfig {
     /**
      * GitHub's "latest release" endpoint. It deliberately excludes drafts and prereleases,
      * so the `beta-NN` builds this project publishes on every branch push are never offered
-     * as an update — only the real `v.x.y` releases are. HTTPS only.
+     * as an update — only the real `vX.Y` releases are. HTTPS only.
      */
     val latestReleaseUrl: String
         get() = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"

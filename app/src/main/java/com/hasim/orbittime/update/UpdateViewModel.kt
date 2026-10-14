@@ -65,9 +65,9 @@ class UpdateViewModel @JvmOverloads constructor(
     }
 
     /**
-     * "Update now" — downloads the APK attached to the detected release and, once it lands,
-     * launches the system installer. No browser, no release page, no version to pick: the
-     * asset URL was already resolved by the check.
+     * "Update now" — downloads the APK attached to the detected release and, once it lands and
+     * is confirmed to be a newer build of this app, launches the system installer. No browser,
+     * no release page, no version to pick: the asset URL was already resolved by the check.
      */
     fun downloadAndInstall() {
         val state = _uiState.value
@@ -105,7 +105,18 @@ class UpdateViewModel @JvmOverloads constructor(
 
             when (result) {
                 is DownloadResult.Success -> {
-                    val error = ApkInstaller.install(context, result.file)
+                    // The APK must itself be a newer build of this app, not just sit under a newer
+                    // tag; otherwise installing it changes nothing and the same "update" comes
+                    // straight back (see UpdateGuard).
+                    val notAnUpgrade = withContext(Dispatchers.IO) {
+                        // Without the installed version there's nothing to compare against, so the
+                        // system installer is left to decide, as before.
+                        ApkInstaller.installedPackageVersion(context)?.let { installed ->
+                            UpdateGuard.problem(installed, ApkInstaller.archivePackageVersion(context, result.file))
+                        }
+                    }
+                    val error = notAnUpgrade?.also { result.file.delete() }
+                        ?: ApkInstaller.install(context, result.file)
                     _uiState.update {
                         it.copy(
                             isDownloading = false,
