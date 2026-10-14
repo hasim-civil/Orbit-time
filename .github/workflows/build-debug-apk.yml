@@ -202,7 +202,9 @@ jobs:
 
           certs=$("$build_tools/apksigner" verify --print-certs "$apk")
           echo "$certs"
-          digests=$(grep -E '^Signer #[0-9]+ certificate SHA-256 digest: ' <<< "$certs" | sed 's/.*: //')
+          # apksigner labels signers "Signer #1" or, per scheme, "V2 Signer"; every digest listed
+          # must be the shared key.
+          digests=$(grep -E 'certificate SHA-256 digest: ' <<< "$certs" | sed 's/.*: //' | sort -u)
           if [ "$digests" != "$EXPECTED_CERT_SHA256" ]; then
             echo "::error::APK is signed with [$digests], not the shared Orbit Time key $EXPECTED_CERT_SHA256"
             exit 1
